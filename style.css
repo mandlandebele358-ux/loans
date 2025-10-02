@@ -845,6 +845,7 @@ fieldset legend {
 .emi-schedule-panel {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .emi-table-container {
   flex-grow: 1;
@@ -1027,6 +1028,9 @@ fieldset legend {
   width: 20px;
   text-align: center;
   color: var(--text-gray);
+}
+#change-password-form .btn {
+  margin-top: 1rem;
 }
 .import-controls {
   display: flex;
@@ -1232,6 +1236,7 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
   .customer-item {
     flex-direction: row;
     align-items: center;
+    justify-content: space-between;
   }
   .customer-info .customer-details {
     gap: 1.5rem;
@@ -1315,6 +1320,10 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.25rem !important;
+  }
+  .customer-actions {
+    min-height: 2.5rem;
+    align-items: center;
   }
 }
 @media (max-width: 480px) {

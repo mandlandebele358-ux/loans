@@ -456,7 +456,7 @@ document.addEventListener("DOMContentLoaded", () => {
           type === "settled"
             ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
             : "";
-        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}"><span class="btn-text-desktop">View Details </span><i class="fas fa-arrow-right"></i></span></div>`;
+        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
         element.appendChild(li);
       });
     };
@@ -1349,7 +1349,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 type === "settled"
                   ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
                   : "";
-              li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}"><span class="btn-text-desktop">View Details </span><i class="fas fa-arrow-right"></i></span></div>`;
+              li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
               element.appendChild(li);
             });
           };
