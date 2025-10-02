@@ -1,1323 +1,1367 @@
+// Firebase Config
 const firebaseConfig = {
-  apiKey: "AIzaSyApRobyjr1U9chPvmXD_bG8WQRLneVDzFo",
-  authDomain: "bahi-19838.firebaseapp.com",
-  projectId: "bahi-19838",
-  storageBucket: "bahi-19838.appspot.com",
-  messagingSenderId: "457522400365",
-  appId: "1:457522400365:web:c85197e2de42ea96970364",
+  apiKey: "AIzaSyBG87TpDWEPzjuJ4rQVQT92ITXdo4FTqbQ",
+  authDomain: "loanmanager-caa23.firebaseapp.com",
+  projectId: "loanmanager-caa23",
+  storageBucket: "loanmanager-caa23.firebasestorage.app",
+  messagingSenderId: "256544208599",
+  appId: "1:256544208599:web:18de9e46a8f77f620aa292",
+  measurementId: "G-QW0EKBYEBS",
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
-const storage = firebase.storage();
 
 document.addEventListener("DOMContentLoaded", () => {
   let allCustomers = { active: [], settled: [] };
+  let recentActivities = [];
   let currentUser = null;
 
-  const authContainer = document.getElementById("auth-container");
-  const adminDashboard = document.getElementById("admin-dashboard");
-  const logoutBtns = [
-    document.getElementById("logout-btn"),
-    document.getElementById("logout-settings-btn"),
-  ];
-  const themeToggleBtn = document.getElementById("theme-toggle-btn");
-  const darkModeToggle = document.getElementById("dark-mode-toggle");
-  const customersList = document.getElementById("customers-list");
-  const recentCustomersList = document.getElementById("recent-customers-list");
-  const settledCustomersList = document.getElementById(
-    "settled-customers-list"
-  );
-  const searchInput = document.getElementById("search-customers");
-  const sidebar = document.getElementById("sidebar");
-  const mobileMenuBtn = document.getElementById("mobile-menu-btn");
-  const sidebarOverlay = document.getElementById("sidebar-overlay");
-  const loginForm = document.getElementById("login-form");
-  const detailsModal = document.getElementById("customer-details-modal");
-  const customerFormModal = document.getElementById("customer-form-modal");
-  const customerFormEl = document.getElementById("customer-form");
-  const confirmationModal = document.getElementById("confirmation-modal");
-  const interestForm = document.getElementById("interest-form");
-  searchInput.addEventListener("input", (e) => {
-    const searchTerm = e.target.value.toLowerCase();
-    const filteredCustomers = allCustomers.active.filter((customer) =>
-      customer.name.toLowerCase().includes(searchTerm)
-    );
-    renderCustomerList(customersList, filteredCustomers, "active");
-  });
-
+  // --- Utility Functions ---
+  const getEl = (id) => document.getElementById(id);
   const showToast = (type, title, message) => {
-    const toastContainer = document.getElementById("toast-container");
+    const toastContainer = getEl("toast-container");
+    if (!toastContainer) return;
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
     const icons = {
       success: "fa-check-circle",
       error: "fa-exclamation-circle",
-      warning: "fa-info-circle",
     };
-    toast.innerHTML = `<i class="fas ${icons[type]} toast-icon"></i><div><div class="toast-title">${title}</div><div class="toast-message">${message}</div></div><button class="toast-close">&times;</button>`;
+    toast.innerHTML = `<i class="fas ${icons[type]} toast-icon"></i><div><div class="toast-title">${title}</div><div class="toast-message">${message}</div></div><button class="toast-close" onclick="this.parentElement.remove()">&times;</button>`;
     toastContainer.appendChild(toast);
     setTimeout(() => {
       toast.classList.add("hide");
       setTimeout(() => toast.remove(), 400);
     }, 5000);
-    toast.querySelector(".toast-close").addEventListener("click", () => {
-      toast.classList.add("hide");
-      setTimeout(() => toast.remove(), 400);
-    });
   };
-
-  const toggleButtonLoading = (btn, isLoading, text) => {
+  const toggleButtonLoading = (btn, isLoading, text = "Loading...") => {
+    if (!btn) return;
     const spinner = btn.querySelector(".loading-spinner");
-    const btnText = btn.querySelector("span:not(.loading-spinner)");
-    if (!btnText) return;
-    if (!btnText.dataset.originalText)
+    const btnText = btn.querySelector(
+      "span:not(.loading-spinner), .btn-text-desktop"
+    );
+    if (btnText && !btnText.dataset.originalText) {
       btnText.dataset.originalText = btnText.textContent;
-    const originalText = btnText.dataset.originalText;
-
+    }
     btn.disabled = isLoading;
     if (spinner) spinner.classList.toggle("hidden", !isLoading);
-    if (btnText) btnText.textContent = isLoading ? text : originalText;
-  };
-
-  const formatCurrency = (amount) =>
-    `₹${Math.round(amount || 0).toLocaleString("en-IN", {
-      maximumFractionDigits: 0,
-    })}`;
-
-  const formatPhoneNumberForWhatsApp = (phone) => {
-    if (!phone) return null;
-    let cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 10) return `91${cleaned}`;
-    if (cleaned.length === 12 && cleaned.startsWith("91")) return cleaned;
-    return null;
-  };
-
-  loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("login-email").value;
-    const password = document.getElementById("login-password").value;
-    const loginBtn = document.getElementById("login-btn");
-    const loginError = document.getElementById("login-error");
-
-    toggleButtonLoading(loginBtn, true, "Logging In...");
-    loginError.textContent = "";
-
-    try {
-      await auth.signInWithEmailAndPassword(email, password);
-      showToast("success", "Login Successful", "Welcome back!");
-    } catch (error) {
-      console.error("Login Error:", error);
-      loginError.textContent = error.message;
-      showToast("error", "Login Failed", error.message);
-      toggleButtonLoading(loginBtn, false);
+    if (btnText) {
+      btnText.textContent = isLoading ? text : btnText.dataset.originalText;
     }
-  });
-
+  };
+  const formatCurrency = (amount) =>
+    `₹${Number(amount || 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  const calculateEMI = (p, r, n) => {
+    if (p <= 0 || r < 0 || n <= 0) return 0;
+    const monthlyRate = r / 12 / 100;
+    if (monthlyRate === 0) return +(p / n).toFixed(2);
+    const emi =
+      (p * monthlyRate * Math.pow(1 + monthlyRate, n)) /
+      (Math.pow(1 + monthlyRate, n) - 1);
+    return +emi.toFixed(2);
+  };
+  const generateAmortizationSchedule = (p, r, n, startDate) => {
+    const emi = calculateEMI(p, r, n);
+    const schedule = [];
+    let balance = p;
+    const monthlyRate = r / 12 / 100;
+    let currentDate = new Date(startDate);
+    for (let i = 1; i <= n; i++) {
+      const interest = +(balance * monthlyRate).toFixed(2);
+      let principal = +(emi - interest).toFixed(2);
+      if (i === n || balance - principal < 0.01)
+        principal = +balance.toFixed(2);
+      balance = +(balance - principal).toFixed(2);
+      const dueDate = new Date(currentDate);
+      dueDate.setMonth(dueDate.getMonth() + 1);
+      if (dueDate.getDate() < currentDate.getDate()) dueDate.setDate(0);
+      currentDate = new Date(dueDate);
+      schedule.push({
+        month: i,
+        dueDate: dueDate.toISOString().split("T")[0],
+        emi: i === n ? +(principal + interest).toFixed(2) : emi,
+        principalComponent: principal,
+        interestComponent: interest,
+        remainingBalance: balance < 0.01 ? 0 : balance,
+        status: "Due",
+      });
+    }
+    return schedule;
+  };
+  const showConfirmation = (title, message, onConfirm) => {
+    getEl("confirmation-title").textContent = title;
+    getEl("confirmation-message").textContent = message;
+    getEl("confirmation-modal").classList.add("show");
+    const confirmBtn = getEl("confirmation-confirm-btn");
+    const cancelBtn = getEl("confirmation-cancel-btn");
+    const confirmHandler = () => {
+      onConfirm();
+      cleanup();
+    };
+    const cancelHandler = () => cleanup();
+    const cleanup = () => {
+      getEl("confirmation-modal").classList.remove("show");
+      confirmBtn.removeEventListener("click", confirmHandler);
+      cancelBtn.removeEventListener("click", cancelHandler);
+    };
+    confirmBtn.addEventListener("click", confirmHandler, { once: true });
+    cancelBtn.addEventListener("click", cancelHandler, { once: true });
+  };
+  const logActivity = async (type, details) => {
+    if (!currentUser) return;
+    try {
+      await db.collection("activities").add({
+        owner_uid: currentUser.uid,
+        type: type,
+        details: details,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Failed to log activity:", error);
+    }
+  };
   const setTheme = (theme) => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("theme", theme);
-    themeToggleBtn.innerHTML =
-      theme === "dark"
-        ? '<i class="fas fa-sun"></i>'
-        : '<i class="fas fa-moon"></i>';
-    darkModeToggle.checked = theme === "dark";
+    const themeToggleBtn = getEl("theme-toggle-btn");
+    const darkModeToggle = getEl("dark-mode-toggle");
+    if (themeToggleBtn)
+      themeToggleBtn.innerHTML =
+        theme === "dark"
+          ? '<i class="fas fa-sun"></i>'
+          : '<i class="fas fa-moon"></i>';
+    if (darkModeToggle) darkModeToggle.checked = theme === "dark";
+    if (typeof renderDashboardCharts === "function") {
+      const profitData = processProfitData(allCustomers);
+      renderDashboardCharts(
+        allCustomers.active,
+        allCustomers.settled,
+        profitData
+      );
+    }
   };
-  themeToggleBtn.addEventListener("click", () =>
-    setTheme(
-      document.documentElement.dataset.theme === "dark" ? "light" : "dark"
-    )
-  );
-  darkModeToggle.addEventListener("change", (e) =>
-    setTheme(e.target.checked ? "dark" : "light")
-  );
-
-  const toggleSidebar = () => {
-    sidebar.classList.toggle("show");
-    sidebarOverlay.classList.toggle("show");
-  };
-  mobileMenuBtn.addEventListener("click", toggleSidebar);
-  sidebarOverlay.addEventListener("click", toggleSidebar);
-
-  document.querySelectorAll(".menu-item").forEach((item) => {
-    item.addEventListener("click", (e) => {
-      e.preventDefault();
-      document
-        .querySelectorAll(".menu-item")
-        .forEach((i) => i.classList.remove("active"));
-      item.classList.add("active");
-      const sectionId = `${item.dataset.section}-section`;
-      document
-        .querySelectorAll(".section-content")
-        .forEach((s) => s.classList.remove("is-active"));
-      document.getElementById(sectionId)?.classList.add("is-active");
-      document.getElementById("section-title").textContent =
-        item.querySelector("span").textContent;
-      if (sidebar.classList.contains("show")) toggleSidebar();
+  const calculateKeyStats = (activeLoans, settledLoans) => {
+    const validActive = activeLoans.filter((c) => c.loanDetails);
+    const validSettled = settledLoans.filter((c) => c.loanDetails);
+    let totalPrincipal = 0,
+      totalOutstanding = 0,
+      totalInterest = 0;
+    validActive.forEach((c) => {
+      totalPrincipal += c.loanDetails.principal;
+      const paid = c.emiSchedule.filter((e) => e.status === "Paid");
+      totalOutstanding +=
+        paid.length > 0
+          ? paid[paid.length - 1].remainingBalance
+          : c.loanDetails.principal;
+      totalInterest += paid.reduce((s, e) => s + (e.interestComponent || 0), 0);
     });
-  });
-
-  const calculateNetProfit = (customer) => {
-    if (!customer.transactions || !Array.isArray(customer.transactions))
-      return 0;
-    const totalGiven = customer.transactions
-      .filter((t) => t.type === "loan")
-      .reduce((sum, t) => sum + t.amount, 0);
-    const totalReceived = customer.transactions
-      .filter((t) => t.type === "payment")
-      .reduce((sum, t) => sum + t.amount, 0);
-    return totalReceived - totalGiven;
-  };
-
-  const calculateTotalInterest = (customer) => {
-    const { lenderTotal, borrowerTotal } = calculateLedgers(customer);
-    const totalPrincipalGiven = (customer.transactions || [])
-      .filter((t) => t.type === "loan")
-      .reduce((sum, t) => sum + t.amount, 0);
-    const totalPrincipalReceived = (customer.transactions || [])
-      .filter((t) => t.type === "payment")
-      .reduce((sum, t) => sum + t.amount, 0);
-    const netInterest =
-      lenderTotal -
-      totalPrincipalGiven -
-      (borrowerTotal - totalPrincipalReceived);
-    return netInterest;
-  };
-
-  const renderCustomerList = (
-    listElement,
-    customersToRender,
-    listType = "default"
-  ) => {
-    listElement.innerHTML = "";
-    if (customersToRender.length === 0) {
-      listElement.innerHTML = `<li class="customer-item"><p>No customers found.</p></li>`;
-      return;
-    }
-    const sortedCustomers = [...customersToRender].sort(
-      (a, b) => b.createdAt.toDate() - a.createdAt.toDate()
-    );
-    sortedCustomers.forEach((customer) => {
-      const li = document.createElement("li");
-      li.className = "customer-item";
-      if (customer.isSimpleInterest) {
-        li.classList.add("is-monthly-payer");
+    settledLoans.forEach((c) => {
+      if (c.loanDetails) {
+        totalPrincipal += c.loanDetails.principal;
+        totalInterest += c.emiSchedule.reduce(
+          (s, e) => s + (e.interestComponent || 0),
+          0
+        );
       }
-      li.dataset.id = customer.id;
-
-      if (listType === "dashboard") {
-        const totalGiven = (customer.transactions || [])
-          .filter((t) => t.type === "loan")
-          .reduce((sum, t) => sum + t.amount, 0);
-        const { netBalanceDue } = calculateLedgers(customer);
-
-        li.innerHTML = `
-            <div class="customer-info">
-                <div class="customer-name">
-                    ${customer.name}
-                    <span class="mobile-only-amount amount-given">${formatCurrency(
-                      totalGiven
-                    )}</span>
-                </div>
-                <div class="customer-details">
-                    <span>${customer.phone || "No Phone"}</span>
-                    <span class="mobile-only-amount amount-due">${formatCurrency(
-                      netBalanceDue
-                    )}</span>
-                </div>
-            </div>
-            <div class="customer-actions">
-                <div class="desktop-only-amounts">
-                    <div class="amount-item">
-                        <span class="label">Given</span>
-                        <span class="amount-given">${formatCurrency(
-                          totalGiven
-                        )}</span>
-                    </div>
-                    <div class="amount-item">
-                        <span class="label">Due</span>
-                        <span class="amount-due">${formatCurrency(
-                          netBalanceDue
-                        )}</span>
-                    </div>
-                </div>
-                <span class="view-details-prompt">View Details <i class="fas fa-arrow-right"></i></span>
-            </div>`;
-      } else {
-        let extraInfoHtml = "";
-        if (listType === "settled") {
-          const profit = calculateNetProfit(customer);
-          const profitClass = profit >= 0 ? "success" : "error";
-          extraInfoHtml = `<span class="list-profit-display ${profitClass}">${formatCurrency(
-            profit
-          )}</span>`;
-        }
-
-        li.innerHTML = `
-    <div class="customer-info">
-        <div class="customer-name">${customer.name}</div>
-        <div class="customer-details"><span>${
-          customer.phone || "No Phone"
-        }</span></div>
-    </div>
-    <div class="customer-actions">
-        ${extraInfoHtml}
-        <span class="view-details-prompt">View Details <i class="fas fa-arrow-right"></i></span>
-        <span class="mobile-only-arrow"><i class="fas fa-chevron-right"></i></span>
-    </div>`;
-      }
-      listElement.appendChild(li);
     });
-  };
-
-  const loadData = async () => {
-    if (!currentUser) return;
-    try {
-      const snapshots = await Promise.all([
-        db
-          .collection("customers")
-          .where("owner", "==", currentUser.uid)
-          .where("status", "==", "active")
-          .orderBy("createdAt", "desc")
-          .get(),
-        db
-          .collection("customers")
-          .where("owner", "==", currentUser.uid)
-          .where("status", "==", "settled")
-          .orderBy("createdAt", "desc")
-          .get(),
-      ]);
-      allCustomers.active = snapshots[0].docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      allCustomers.settled = snapshots[1].docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      renderCustomerList(customersList, allCustomers.active, "active");
-      renderCustomerList(recentCustomersList, allCustomers.active, "dashboard");
-      renderCustomerList(settledCustomersList, allCustomers.settled, "settled");
-      updateDashboardStats();
-    } catch (error) {
-      console.error("Error loading customers:", error);
-      showToast("error", "Load Failed", "Could not fetch customer data.");
-    }
-  };
-
-  const calculateDuration = (d1, d2) => {
-    let from = new Date(d1);
-    let to = new Date(d2);
-    let years = to.getFullYear() - from.getFullYear();
-    let months = to.getMonth() - from.getMonth();
-    let days = to.getDate() - from.getDate();
-    if (days < 0) {
-      months--;
-      days += new Date(to.getFullYear(), to.getMonth(), 0).getDate();
-    }
-    if (months < 0) {
-      years--;
-      months += 12;
-    }
-    return { years, months, days };
-  };
-
-  const calculateInterest = (
-    principal,
-    rate,
-    startDateStr,
-    endDate,
-    isSimpleInterest = false
-  ) => {
-    if (!principal || !rate || !startDateStr)
-      return {
-        principal,
-        interest: 0,
-        total: principal,
-        duration: { years: 0, months: 0, days: 0 },
-      };
-    const startDate = new Date(startDateStr);
-    const { years, months, days } = calculateDuration(startDate, endDate);
-
-    if (isSimpleInterest) {
-      const totalDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
-      const interest = principal * (rate / 100 / 365) * totalDays;
-      return {
-        principal,
-        interest,
-        total: principal + interest,
-        duration: { years, months, days },
-      };
-    }
-
-    let amount = principal;
-    for (let i = 0; i < years; i++) {
-      amount += amount * (rate / 100);
-    }
-    const remainingDays = months * 30.417 + days;
-    const simpleInterestOnCompoundedAmount =
-      amount * (rate / 100 / 365) * remainingDays;
-    amount += simpleInterestOnCompoundedAmount;
     return {
-      principal,
-      interest: amount - principal,
-      total: amount,
-      duration: { years, months, days },
+      activeLoanCount: validActive.length,
+      settledLoanCount: validSettled.length,
+      totalPrincipal,
+      totalOutstanding,
+      totalInterest,
     };
   };
-
-  const calculateLedgers = (customer) => {
-    const endDate = new Date();
-    const transactions = (customer.transactions || []).map((tx) => {
-      if (tx.type === "payment" && customer.isSimpleInterest) {
-        return {
-          ...tx,
-          interest: 0,
-          total: tx.amount,
-          duration: { years: 0, months: 0, days: 0 },
-        };
+  const updateSidebarStats = (stats) => {
+    getEl("sidebar-active-loans").textContent = stats.activeLoanCount;
+    getEl("sidebar-settled-loans").textContent = stats.settledLoanCount;
+    getEl("sidebar-interest-earned").textContent = formatCurrency(
+      stats.totalInterest
+    );
+    getEl("sidebar-outstanding").textContent = formatCurrency(
+      stats.totalOutstanding
+    );
+  };
+  const processProfitData = (allCusts) => {
+    const data = [];
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    [...allCusts.active, ...allCusts.settled].forEach((customer) => {
+      if (customer.loanDetails && customer.emiSchedule) {
+        customer.emiSchedule.forEach((emi) => {
+          if (emi.status === "Paid" && new Date(emi.dueDate) <= today) {
+            data.push({ date: emi.dueDate, profit: emi.interestComponent });
+          }
+        });
       }
-      const calc = calculateInterest(
-        tx.amount,
-        tx.rate || customer.interestRate,
-        tx.date,
-        endDate,
-        customer.isSimpleInterest
+    });
+    return data;
+  };
+
+  const loadAndRenderAll = async () => {
+    if (!currentUser) return;
+    try {
+      const [activeSnapshot, settledSnapshot, activitiesSnapshot] =
+        await Promise.all([
+          db
+            .collection("customers")
+            .where("owner", "==", currentUser.uid)
+            .where("status", "==", "active")
+            .orderBy("createdAt", "desc")
+            .get(),
+          db
+            .collection("customers")
+            .where("owner", "==", currentUser.uid)
+            .where("status", "==", "settled")
+            .orderBy("createdAt", "desc")
+            .get(),
+          db
+            .collection("activities")
+            .where("owner_uid", "==", currentUser.uid)
+            .orderBy("timestamp", "desc")
+            .limit(10)
+            .get(),
+        ]);
+      allCustomers.active = activeSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      allCustomers.settled = settledSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      recentActivities = activitiesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      const stats = calculateKeyStats(
+        allCustomers.active,
+        allCustomers.settled
       );
-      return { ...tx, ...calc };
-    });
-
-    const loans = transactions.filter((tx) => tx.type === "loan");
-    const payments = transactions.filter((tx) => tx.type === "payment");
-
-    const lenderTotal = loans.reduce((sum, tx) => sum + tx.total, 0);
-    const borrowerTotal = payments.reduce((sum, tx) => sum + tx.total, 0);
-
-    const netBalanceDue = lenderTotal - borrowerTotal;
-
-    return { loans, payments, lenderTotal, borrowerTotal, netBalanceDue };
-  };
-
-  const adjustStatCardFontSize = (element) => {
-    const textLength = element.textContent.length;
-    let newSize = "1.875rem";
-    if (textLength > 13) {
-      newSize = "1.25rem";
-    } else if (textLength > 10) {
-      newSize = "1.5rem";
-    } else if (textLength > 8) {
-      newSize = "1.75rem";
+      populatePageContent(stats);
+      updateSidebarStats(stats);
+      const profitData = processProfitData(allCustomers);
+      if (typeof renderDashboardCharts === "function")
+        renderDashboardCharts(
+          allCustomers.active,
+          allCustomers.settled,
+          profitData
+        );
+    } catch (error) {
+      console.error("Error loading data:", error);
+      showToast("error", "Load Failed", "Could not fetch all required data.");
     }
-    element.style.fontSize = newSize;
   };
 
-  const updateDashboardStats = () => {
-    document.getElementById("total-customers").textContent =
-      allCustomers.active.length + allCustomers.settled.length;
+  const populatePageContent = (stats) => {
+    getEl(
+      "dashboard-section"
+    ).innerHTML = `<div class="stats-container"><div class="stat-card"><div class="stat-title">Total Principal</div><div class="stat-value">${formatCurrency(
+      stats.totalPrincipal
+    )}</div></div><div class="stat-card"><div class="stat-title">Outstanding</div><div class="stat-value">${formatCurrency(
+      stats.totalOutstanding
+    )}</div></div><div class="stat-card"><div class="stat-title">Interest Earned</div><div class="stat-value">${formatCurrency(
+      stats.totalInterest
+    )}</div></div><div class="stat-card"><div class="stat-title">Active Loans</div><div class="stat-value">${
+      stats.activeLoanCount
+    }</div></div></div><div class="dashboard-grid"><div class="form-card chart-card"><h3 >Portfolio Overview</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div><div class="form-card chart-card grid-col-span-2"><h3 >Profit Over Time <div class="chart-controls" id="profit-chart-controls"><button class="btn btn-sm btn-outline active" data-frame="monthly">Month</button><button class="btn btn-sm btn-outline" data-frame="yearly">Year</button></div></h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div><div class="form-card"><h3><i class="fas fa-clock" style="color:var(--primary)"></i> Upcoming EMIs</h3><div id="upcoming-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Overdue EMIs</h3><div id="overdue-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-history"></i> Recent Activity <button class="btn btn-danger btn-sm" id="clear-all-activities-btn" title="Clear all activities"><i class="fas fa-trash"></i></button></h3><div id="recent-activity-container" class="activity-container"></div></div></div>`;
+    getEl(
+      "calculator-section"
+    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> EMI Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row"><div class="form-group"><label for="calc-rate">Annual Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 12.5" step="0.01" required /></div><div class="form-group"><label for="calc-tenure">Tenure (Months)</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 24" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Monthly EMI</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
+    getEl("settings-section").innerHTML = `<div class="settings-grid">
+        <div class="form-card setting-card">
+            <div class="setting-card-header">
+                <i class="fas fa-shield-alt"></i>
+                <h3>Security</h3>
+            </div>
+            <div class="setting-card-body">
+                <p class="setting-description">Manage your account security settings.</p>
+                <form id="change-password-form">
+                    <div class="form-group">
+                        <label for="current-password">Current Password</label>
+                        <input type="password" id="current-password" class="form-control" required/>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="new-password">New Password</label>
+                            <input type="password" id="new-password" class="form-control" required/>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirm-password">Confirm New Password</label>
+                            <input type="password" id="confirm-password" class="form-control" required/>
+                        </div>
+                    </div>
+                    <button id="change-password-btn" type="submit" class="btn btn-primary">
+                        <span class="loading-spinner hidden"></span>
+                        <span>Update Password</span>
+                    </button>
+                </form>
+            </div>
+        </div>
 
-    let totalLoanGiven = 0;
-    let netBalance = 0;
-    let totalNetProfit = 0;
+        <div class="form-card setting-card">
+            <div class="setting-card-header">
+                <i class="fas fa-palette"></i>
+                <h3>Appearance</h3>
+            </div>
+            <div class="setting-card-body">
+                <p class="setting-description">Customize the look and feel of the application.</p>
+                <div class="setting-item">
+                    <div class="setting-label">
+                        <i class="fas fa-moon"></i>
+                        <span>Dark Mode</span>
+                    </div>
+                    <div class="setting-control">
+                        <label class="switch">
+                            <input type="checkbox" id="dark-mode-toggle" />
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-    allCustomers.active.forEach((customer) => {
-      const { lenderTotal, borrowerTotal } = calculateLedgers(customer);
-      if (customer.transactions && Array.isArray(customer.transactions)) {
-        totalLoanGiven += customer.transactions
-          .filter((t) => t.type === "loan")
-          .reduce((sum, tx) => sum + tx.amount, 0);
+        <div class="form-card setting-card">
+            <div class="setting-card-header">
+                <i class="fas fa-database"></i>
+                <h3>Data Management</h3>
+            </div>
+            <div class="setting-card-body">
+                <p class="setting-description">Backup your data or restore from a file.</p>
+                <div class="setting-item">
+                    <div class="setting-label">
+                        <i class="fas fa-download"></i>
+                        <span>Export Data</span>
+                    </div>
+                    <div class="setting-control">
+                        <button class="btn btn-outline" id="export-backup-btn">Download Backup</button>
+                    </div>
+                </div>
+                <hr class="form-hr">
+                <div class="setting-item column">
+                     <div class="setting-label">
+                        <i class="fas fa-upload"></i>
+                        <span>Import Data</span>
+                    </div>
+                    <div class="import-controls">
+                        <input type="file" id="import-backup-input" accept=".json" class="hidden">
+                        <label for="import-backup-input" class="btn btn-outline">
+                            <i class="fas fa-file-import"></i> Choose File
+                        </label>
+                        <span id="file-name-display" class="file-name">No file chosen</span>
+                    </div>
+                     <p class="warning-text"><i class="fas fa-exclamation-triangle"></i> This will overwrite all current data.</p>
+                    <button class="btn btn-danger" id="import-backup-btn">Import & Overwrite</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-card setting-card">
+            <div class="setting-card-header">
+                <i class="fas fa-user-cog"></i>
+                <h3>Account</h3>
+            </div>
+            <div class="setting-card-body">
+                 <p class="setting-description">Log out from your current session.</p>
+                <div class="setting-item">
+                   <div class="setting-label">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </div>
+                    <div class="setting-control">
+                        <button class="btn btn-outline" id="logout-settings-btn">Logout Now</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    setTheme(localStorage.getItem("theme") || "light");
+    populateCustomerLists();
+    populateTodaysCollection();
+    renderUpcomingAndOverdueEmis(allCustomers.active);
+    renderActivityLog();
+  };
+  const renderActivityLog = () => {
+    const container = getEl("recent-activity-container");
+    if (!container) return;
+    if (!recentActivities || recentActivities.length === 0) {
+      container.innerHTML = `<ul class="activity-list"><li class="activity-item" style="cursor:default;">No recent activities found.</li></ul>`;
+      return;
+    }
+    const activityHTML = recentActivities
+      .map((act) => {
+        let icon = "fa-info-circle";
+        let text = "New activity";
+        const customerName = act.details.customerName
+          ? `<strong>${act.details.customerName}</strong>`
+          : "";
+        const amount = act.details.amount
+          ? formatCurrency(act.details.amount)
+          : "";
+        switch (act.type) {
+          case "NEW_LOAN":
+            icon = "fa-user-plus text-success";
+            text = `New loan for ${customerName} of ${amount}`;
+            break;
+          case "EMI_PAID":
+            icon = "fa-check-circle text-success";
+            text = `EMI paid by ${customerName} of ${amount}`;
+            break;
+          case "LOAN_SETTLED":
+            icon = "fa-flag-checkered text-primary";
+            text = `Loan settled for ${customerName}`;
+            break;
+          case "LOAN_REFINANCED":
+            icon = "fa-sync-alt text-warning";
+            text = `Loan for ${customerName} refinanced to ${amount}`;
+            break;
+        }
+        const timestamp = act.timestamp
+          ? new Date(act.timestamp.seconds * 1000).toLocaleString()
+          : "Just now";
+        return `<li class="activity-item" id="activity-${act.id}"><div class="activity-info"><i class="fas ${icon} activity-icon"></i><div class="activity-text"><span class="activity-name">${text}</span><span class="activity-date">${timestamp}</span></div></div><div class="activity-actions"><button class="delete-activity-btn" data-id="${act.id}" title="Delete Activity"><i class="fas fa-trash-alt"></i></button></div></li>`;
+      })
+      .join("");
+    container.innerHTML = `<ul class="activity-list">${activityHTML}</ul>`;
+  };
+  const populateCustomerLists = () => {
+    const renderList = (element, data, type) => {
+      if (!element) return;
+      element.innerHTML = "";
+      if (data.length === 0) {
+        element.innerHTML = `<li class="activity-item" style="cursor:default; justify-content:center;"><p>No customers found.</p></li>`;
+        return;
       }
-      netBalance += lenderTotal - borrowerTotal;
-    });
-
-    allCustomers.settled.forEach((customer) => {
-      totalNetProfit += calculateNetProfit(customer);
-    });
-
-    const totalLoansEl = document.getElementById("total-loans");
-    const netBalanceEl = document.getElementById("net-balance");
-    const activeLoansEl = document.getElementById("active-loans");
-    const netProfitEl = document.getElementById("net-profit-dashboard");
-
-    totalLoansEl.textContent = formatCurrency(totalLoanGiven);
-    netBalanceEl.textContent = formatCurrency(netBalance);
-    activeLoansEl.textContent = allCustomers.active.length;
-    netProfitEl.textContent = formatCurrency(totalNetProfit);
-
-    adjustStatCardFontSize(totalLoansEl);
-    adjustStatCardFontSize(netBalanceEl);
-    adjustStatCardFontSize(netProfitEl);
+      data.forEach((c) => {
+        const li = document.createElement("li");
+        li.className = "customer-item";
+        const detailsHtml =
+          c.status === "settled"
+            ? `<span>Principal: ${formatCurrency(
+                c.loanDetails.principal
+              )}</span><span class="list-profit-display success">Interest: ${formatCurrency(
+                c.emiSchedule.reduce(
+                  (s, e) => s + (e.interestComponent || 0),
+                  0
+                )
+              )}</span>`
+            : `<span>EMI: ${formatCurrency(
+                c.loanDetails.emiAmount
+              )}</span><span>Paid: ${
+                c.emiSchedule.filter((e) => e.status === "Paid").length
+              }/${c.emiSchedule.length}</span>`;
+        const deleteButton =
+          type === "settled"
+            ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
+            : "";
+        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}"><span class="btn-text-desktop">View Details </span><i class="fas fa-arrow-right"></i></span></div>`;
+        element.appendChild(li);
+      });
+    };
+    getEl(
+      "active-accounts-section"
+    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Active Accounts (${allCustomers.active.length})</h3><button class="btn btn-outline" id="export-active-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><div class="form-group"><input type="text" id="search-customers" class="form-control" placeholder="Search active customers..." /></div><ul id="customers-list" class="customer-list"></ul></div>`;
+    renderList(getEl("customers-list"), allCustomers.active, "active");
+    getEl(
+      "settled-accounts-section"
+    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Settled Accounts (${allCustomers.settled.length})</h3><button class="btn btn-outline" id="export-settled-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><ul id="settled-customers-list" class="customer-list"></ul></div>`;
+    renderList(
+      getEl("settled-customers-list"),
+      allCustomers.settled,
+      "settled"
+    );
   };
-
-  const showCustomerDetails = (customerId, isReadOnly = false) => {
+  const renderUpcomingAndOverdueEmis = (activeLoans) => {
+    const upcomingContainer = getEl("upcoming-emi-container");
+    const overdueContainer = getEl("overdue-emi-container");
+    if (!upcomingContainer || !overdueContainer) return;
+    let upcoming = [],
+      overdue = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    activeLoans
+      .filter((c) => c.loanDetails)
+      .forEach((customer) => {
+        const nextDueEmi = customer.emiSchedule.find((e) => e.status === "Due");
+        if (nextDueEmi) {
+          const dueDate = new Date(nextDueEmi.dueDate);
+          const entry = {
+            name: customer.name,
+            amount: nextDueEmi.emi,
+            date: nextDueEmi.dueDate,
+            customerId: customer.id,
+          };
+          if (dueDate < today) overdue.push(entry);
+          else upcoming.push(entry);
+        }
+      });
+    upcoming.sort((a, b) => new Date(a.date) - new Date(b.date));
+    overdue.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const renderEmiList = (items) => {
+      if (items.length === 0)
+        return `<ul class="activity-list"><li class="activity-item" style="cursor:default; justify-content:center;">No EMIs found.</li></ul>`;
+      return `<ul class="activity-list">${items
+        .slice(0, 5)
+        .map(
+          (item) =>
+            `<li class="activity-item" data-id="${
+              item.customerId
+            }"><div class="activity-info"><span class="activity-name">${
+              item.name
+            }</span><span class="activity-date">${
+              item.date
+            }</span></div><div class="activity-value"><span class="activity-amount">${formatCurrency(
+              item.amount
+            )}</span></div></li>`
+        )
+        .join("")}</ul>`;
+    };
+    upcomingContainer.innerHTML = renderEmiList(upcoming);
+    overdueContainer.innerHTML = renderEmiList(overdue);
+  };
+  const populateTodaysCollection = () => {
+    const container = getEl("todays-collection-section");
+    if (!container) return;
+    const today = new Date().toISOString().split("T")[0];
+    const dueToday = allCustomers.active
+      .map((cust) => {
+        const dueEmi = cust.emiSchedule.find(
+          (emi) => emi.dueDate === today && emi.status === "Due"
+        );
+        return dueEmi ? { ...cust, dueEmi } : null;
+      })
+      .filter(Boolean);
+    const totalDue = dueToday.reduce((sum, item) => sum + item.dueEmi.emi, 0);
+    let listHtml = "";
+    if (dueToday.length > 0) {
+      listHtml = dueToday
+        .map(
+          (item) =>
+            `<li class="activity-item" data-id="${
+              item.id
+            }"><div class="activity-info"><span class="activity-name">${
+              item.name
+            }</span><span class="activity-details">EMI #${
+              item.dueEmi.month
+            }</span></div><div class="activity-value"><span class="activity-amount">${formatCurrency(
+              item.dueEmi.emi
+            )}</span></div></li>`
+        )
+        .join("");
+    } else {
+      listHtml = `<li class="activity-item" style="cursor:default; justify-content:center;">No collections due today.</li>`;
+    }
+    container.innerHTML = `<div class="form-card"><div class="card-header"><h3>Due Today (${
+      dueToday.length
+    })</h3><div class="stat-card" style="padding: 0.5rem 1rem; text-align: right;"><div class="stat-title">Total Due Today</div><div class="stat-value" style="font-size: 1.5rem;">${formatCurrency(
+      totalDue
+    )}</div></div></div><ul class="activity-list">${listHtml}</ul></div>`;
+  };
+  const showCustomerDetails = (customerId) => {
     const customer = [...allCustomers.active, ...allCustomers.settled].find(
       (c) => c.id === customerId
     );
     if (!customer) return;
-
-    document.getElementById(
-      "details-modal-title"
-    ).textContent = `Ledger for ${customer.name}`;
-    document.getElementById("transaction-customer-id").value = customer.id;
-    document.getElementById("transaction-rate").value = customer.interestRate;
-
-    const isSettled = customer.status === "settled";
-    const canEdit = !isSettled && !isReadOnly;
-
-    const editDetailsContainer = document.getElementById(
-      "edit-details-container"
+    const modalBody = getEl("details-modal-body");
+    getEl("details-modal-title").textContent = `Loan Details: ${customer.name}`;
+    if (!customer.loanDetails || !customer.emiSchedule) {
+      modalBody.innerHTML = `<p style="padding: 2rem; text-align: center;">This customer uses an outdated data format.</p>`;
+      getEl("customer-details-modal").classList.add("show");
+      return;
+    }
+    const { emiSchedule: schedule, loanDetails: details } = customer;
+    const paidEmis = schedule.filter((e) => e.status === "Paid");
+    const totalPaid = paidEmis.reduce((sum, emi) => sum + emi.emi, 0);
+    const remainingToCollect = schedule
+      .filter((e) => e.status !== "Paid")
+      .reduce((sum, emi) => sum + emi.emi, 0);
+    const progress = (paidEmis.length / schedule.length) * 100;
+    const outstanding =
+      paidEmis.length > 0
+        ? paidEmis[paidEmis.length - 1].remainingBalance
+        : details.principal;
+    const nextDueEmi = schedule.find((e) => e.status === "Due");
+    const totalInterestPaid = paidEmis.reduce(
+      (sum, emi) => sum + emi.interestComponent,
+      0
     );
-
-    if (isReadOnly || isSettled) {
-      editDetailsContainer.style.display = "none";
-    } else {
-      editDetailsContainer.style.display = "flex";
-    }
-
-    document.getElementById("transaction-form-container").style.display =
-      canEdit ? "block" : "none";
-    document.getElementById("active-account-summary").style.display =
-      isSettled || isReadOnly ? "none" : "block";
-    document
-      .getElementById("settled-account-summary")
-      .classList.toggle("hidden", !isSettled);
-
-    const { loans, payments, lenderTotal, borrowerTotal, netBalanceDue } =
-      calculateLedgers(customer);
-
-    const formatMonthlyRate = (tx) => {
-      const annualRate = tx.rate || customer.interestRate;
-      const monthlyRate = annualRate / 12;
-      const formattedRate = monthlyRate.toLocaleString("en-IN", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      });
-      return `${formattedRate}%`;
-    };
-
-    const lenderLedgerItems = document.getElementById("lender-ledger-items");
-    lenderLedgerItems.innerHTML = "";
-    loans
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .forEach((tx) => {
-        lenderLedgerItems.innerHTML += `<div class="ledger-item">
-                <div class="tx-details">
-                  <div class="tx-description">Payment</div>
-                  <span class="tx-date">${new Date(tx.date).toLocaleDateString(
-                    "en-IN"
-                  )}</span>
-                </div>
-                <div class="tx-monthly-rate">${formatMonthlyRate(tx)}</div>
-                <div class="tx-amount-group">
-                  <div>${formatCurrency(tx.amount)}</div>
-                  <small class="tx-interest success">+ ${formatCurrency(
-                    tx.interest
-                  )}</small>
-                </div>
-                ${
-                  canEdit
-                    ? `<button class="delete-tx-btn" data-tx-id="${tx.id}" title="Delete Transaction"><i class="fas fa-times-circle"></i></button>`
-                    : ""
-                }
-              </div>`;
-      });
-
-    const borrowerLedgerItems = document.getElementById(
-      "borrower-ledger-items"
-    );
-    borrowerLedgerItems.innerHTML = "";
-    payments
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .forEach((tx) => {
-        const interestDisplay =
-          customer.isSimpleInterest && tx.type === "payment"
-            ? '<div class="tx-interest"></div>'
-            : `<small class="tx-interest success">+ ${formatCurrency(
-                tx.interest
-              )}</small>`;
-
-        borrowerLedgerItems.innerHTML += `<div class="ledger-item">
-                <div class="tx-details">
-                  <div class="tx-description">Payment</div>
-                  <span class="tx-date">${new Date(tx.date).toLocaleDateString(
-                    "en-IN"
-                  )}</span>
-                </div>
-                 <div class="tx-monthly-rate">${formatMonthlyRate(tx)}</div>
-                <div class="tx-amount-group">
-                  <div>${formatCurrency(tx.amount)}</div>
-                  ${interestDisplay}
-                </div>
-                ${
-                  canEdit
-                    ? `<button class="delete-tx-btn" data-tx-id="${tx.id}" title="Delete Transaction"><i class="fas fa-times-circle"></i></button>`
-                    : ""
-                }
-              </div>`;
-      });
-
-    document.getElementById("lender-total").textContent =
-      formatCurrency(lenderTotal);
-    document.getElementById("borrower-total").textContent =
-      formatCurrency(borrowerTotal);
-
-    if (isSettled) {
-      const totalGiven = (customer.transactions || [])
-        .filter((t) => t.type === "loan")
-        .reduce((sum, t) => sum + t.amount, 0);
-      const totalReceived = (customer.transactions || [])
-        .filter((t) => t.type === "payment")
-        .reduce((sum, t) => sum + t.amount, 0);
-      const netProfit = totalReceived - totalGiven;
-
-      const profitNetEl = document.getElementById("profit-net");
-      const profitLossLabelEl = document.getElementById("profit-loss-label");
-      const differenceSummaryEl = document.getElementById(
-        "payment-difference-summary"
-      );
-      const shortfallAmountEl = document.getElementById("shortfall-amount");
-      const ramBharoseEl = document.getElementById("ram-bharose-summary");
-
-      document.getElementById("profit-total-given").textContent =
-        formatCurrency(totalGiven);
-      document.getElementById("profit-total-received").textContent =
-        formatCurrency(totalReceived);
-      profitNetEl.textContent = formatCurrency(netProfit);
-
-      if (netProfit < 0) {
-        profitNetEl.style.color = "var(--error)";
-        profitLossLabelEl.textContent = "Net Loss:";
-      } else {
-        profitNetEl.style.color = "var(--success)";
-        profitLossLabelEl.textContent = "Net Profit:";
-      }
-
-      const cashShortfall = totalGiven - totalReceived;
-      if (cashShortfall > 0.01) {
-        shortfallAmountEl.textContent = formatCurrency(cashShortfall);
-        differenceSummaryEl.classList.remove("hidden");
-      } else {
-        differenceSummaryEl.classList.add("hidden");
-      }
-
-      const finalBalanceDifference = lenderTotal - borrowerTotal;
-      ramBharoseEl.innerHTML = `Ram Bharose: <strong>${formatCurrency(
-        finalBalanceDifference
-      )}</strong>`;
-      ramBharoseEl.classList.remove("hidden");
-
-      document.getElementById("delete-account-btn").dataset.id = customer.id;
-    } else if (!isReadOnly) {
-      document.getElementById("edit-customer-btn").dataset.id = customer.id;
-      document.getElementById("settle-account-btn").dataset.id = customer.id;
-      document.getElementById("net-balance-due").textContent =
-        formatCurrency(netBalanceDue);
-    }
-
-    detailsModal.classList.add("show");
-  };
-
-  const handleListClick = (e) => {
-    const target = e.target.closest(".customer-item");
-    if (target && target.dataset.id) {
-      const isDashboardClick = e.currentTarget.id === "recent-customers-list";
-      showCustomerDetails(target.dataset.id, isDashboardClick);
-    }
-  };
-  [customersList, recentCustomersList, settledCustomersList].forEach((list) =>
-    list.addEventListener("click", handleListClick)
-  );
-
-  document.getElementById("add-customer-btn").addEventListener("click", () => {
-    customerFormEl.reset();
-    document.getElementById("customer-id").value = "";
-    document.getElementById("customer-form-modal-title").textContent =
-      "Add New Customer";
-    document.getElementById("is-simple-interest").checked = false;
-    document.getElementById("loan-date").value = new Date()
-      .toISOString()
-      .split("T")[0];
-    customerFormModal.classList.add("show");
-  });
-
-  document
-    .getElementById("edit-customer-btn")
-    .addEventListener("click", (e) => {
-      const customerId = e.currentTarget.dataset.id;
-      const customer = allCustomers.active.find((c) => c.id === customerId);
-      if (!customer) return;
-
-      const firstLoan = customer.transactions?.find((tx) => tx.type === "loan");
-
-      document.getElementById("customer-id").value = customer.id;
-      document.getElementById("customer-name").value = customer.name;
-      document.getElementById("customer-phone").value = customer.phone || "";
-      document.getElementById("loan-amount").value = firstLoan?.amount || 0;
-      document.getElementById("interest-rate-modal").value =
-        customer.interestRate;
-      document.getElementById("is-simple-interest").checked =
-        customer.isSimpleInterest || false;
-      document.getElementById("loan-date").value = firstLoan?.date || "";
-      document.getElementById("customer-form-modal-title").textContent =
-        "Edit Customer Details";
-      detailsModal.classList.remove("show");
-      customerFormModal.classList.add("show");
+    const settleButton =
+      customer.status === "active"
+        ? `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`
+        : "";
+    const hasHistory = customer.history && customer.history.length > 0;
+    const historyButton = `<button class="btn btn-outline" id="view-history-btn" data-id="${
+      customer.id
+    }" ${!hasHistory ? "disabled" : ""}><i class="fas fa-history"></i> ${
+      hasHistory ? "View History" : "No History"
+    }</button>`;
+    modalBody.innerHTML = `<div class="details-view-grid"><div class="customer-profile-panel"><div class="profile-header"><div class="profile-avatar">${customer.name
+      .charAt(0)
+      .toUpperCase()}</div><h3 class="profile-name">${
+      customer.name
+    }</h3><p class="profile-contact">${
+      customer.phone || "N/A"
+    }</p></div><div class="profile-section"><h4>Personal Details</h4><div class="profile-stat"><span class="label">Father's Name</span><span class="value">${
+      customer.fatherName || "N/A"
+    }</span></div><div class="profile-stat"><span class="label">Address</span><span class="value">${
+      customer.address || "N/A"
+    }</span></div></div><div class="profile-section"><h4>KYC Details</h4><div class="profile-stat"><span class="label">Aadhar</span><span class="value">${
+      customer.aadhar || "N/A"
+    }</span></div><div class="profile-stat"><span class="label">PAN</span><span class="value">${
+      customer.pan || "N/A"
+    }</span></div></div><div class="loan-progress-section"><h4>Loan Progress (${
+      paidEmis.length
+    } of ${
+      schedule.length
+    } Paid)</h4><div class="progress-bar"><div class="progress-bar-inner" style="width: ${progress}%;"></div></div></div><div class="loan-actions"><button class="btn btn-outline" id="edit-customer-info-btn" data-id="${
+      customer.id
+    }"><i class="fas fa-edit"></i> Edit Info</button>${
+      customer.status === "active"
+        ? `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`
+        : ""
+    }${settleButton}${historyButton}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
+      details.principal
+    )}</span></div><div class="calc-result-item"><span>Total Interest Paid</span><span>${formatCurrency(
+      totalInterestPaid
+    )}</span></div><div class="calc-result-item"><span>Outstanding Balance</span><span>${formatCurrency(
+      outstanding
+    )}</span></div><div class="calc-result-item"><span>Next EMI Due</span><span>${
+      nextDueEmi ? nextDueEmi.dueDate : "N/A"
+    }</span></div></div><div class="modal-summary-stats"><div class="summary-stat-item"><span class="label">Amount Received</span><span class="value received">${formatCurrency(
+      totalPaid
+    )}</span></div><div class="summary-stat-item"><span class="label">Amount Remaining</span><span class="value remaining">${formatCurrency(
+      remainingToCollect
+    )}</span></div></div></div></div>`;
+    const emiTableBody = modalBody.querySelector("#emi-schedule-body-details");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    schedule.forEach((emi) => {
+      const tr = document.createElement("tr");
+      if (emi.status === "Paid") tr.classList.add("emi-paid-row");
+      const isOverdue = new Date(emi.dueDate) < today && emi.status === "Due";
+      const statusClass = isOverdue ? "overdue" : emi.status.toLowerCase();
+      const statusText = isOverdue ? "OVERDUE" : emi.status.toUpperCase();
+      tr.innerHTML = `<td>${emi.month}</td><td>${
+        emi.dueDate
+      }</td><td>${formatCurrency(
+        emi.emi
+      )}</td><td><span class="emi-status status-${statusClass}">${statusText}</span></td><td class="no-pdf">${
+        customer.status === "active" && emi.status === "Due"
+          ? `<button class="btn btn-success btn-sm emi-pay-btn" data-month="${emi.month}" data-id="${customer.id}">Paid</button>`
+          : ""
+      }${
+        customer.status === "active" && emi.status === "Paid"
+          ? `<button class="btn btn-outline btn-sm emi-pay-btn" data-month="${emi.month}" data-id="${customer.id}">Unpaid</button>`
+          : ""
+      }</td>`;
+      emiTableBody.appendChild(tr);
     });
+    getEl("customer-details-modal").classList.add("show");
+  };
 
-  customerFormEl.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const id = document.getElementById("customer-id").value;
-    const isEditing = !!id;
-    const saveBtn = document.getElementById("customer-modal-save");
-    toggleButtonLoading(saveBtn, true, isEditing ? "Updating..." : "Saving...");
-
-    try {
-      if (isEditing) {
-        const customerRef = db.collection("customers").doc(id);
-        const doc = await customerRef.get();
-        if (!doc.exists) throw new Error("Customer not found");
-
-        const customerData = doc.data();
-        const firstLoanIndex = customerData.transactions.findIndex(
-          (tx) => tx.type === "loan"
-        );
-
-        customerData.name = document.getElementById("customer-name").value;
-        customerData.phone = document.getElementById("customer-phone").value;
-        customerData.interestRate =
-          parseFloat(document.getElementById("interest-rate-modal").value) || 0;
-        customerData.isSimpleInterest =
-          document.getElementById("is-simple-interest").checked;
-
-        if (firstLoanIndex !== -1) {
-          customerData.transactions[firstLoanIndex].amount =
-            parseFloat(document.getElementById("loan-amount").value) || 0;
-          customerData.transactions[firstLoanIndex].date =
-            document.getElementById("loan-date").value;
-          customerData.transactions[firstLoanIndex].rate =
-            customerData.interestRate;
-        }
-
-        await customerRef.update(customerData);
-        showToast("success", "Customer Updated", "Details saved.");
-      } else {
-        const customerData = {
-          name: document.getElementById("customer-name").value,
-          phone: document.getElementById("customer-phone").value,
-          interestRate:
-            parseFloat(document.getElementById("interest-rate-modal").value) ||
-            0,
-          isSimpleInterest:
-            document.getElementById("is-simple-interest").checked,
-          transactions: [
-            {
-              amount:
-                parseFloat(document.getElementById("loan-amount").value) || 0,
-              date: document.getElementById("loan-date").value,
-              type: "loan",
-              id: Date.now(),
-              rate:
-                parseFloat(
-                  document.getElementById("interest-rate-modal").value
-                ) || 0,
-            },
-          ],
-          owner: currentUser.uid,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          status: "active",
-        };
-        await db.collection("customers").add(customerData);
-        showToast("success", "Customer Added", "New customer saved.");
-      }
-      customerFormModal.classList.remove("show");
-      await loadData();
-    } catch (error) {
-      document.getElementById("customer-form-error").textContent =
-        error.message;
-    } finally {
-      toggleButtonLoading(saveBtn, false);
+  auth.onAuthStateChanged((user) => {
+    currentUser = user;
+    if (user) {
+      getEl("auth-container").classList.add("hidden");
+      getEl("admin-dashboard").classList.remove("hidden");
+      loadAndRenderAll();
+    } else {
+      allCustomers = { active: [], settled: [] };
+      recentActivities = [];
+      getEl("auth-container").classList.remove("hidden");
+      getEl("admin-dashboard").classList.add("hidden");
     }
   });
 
-  const showConfirmation = (title, message, onConfirm) => {
-    confirmationModal.querySelector("#confirmation-title").textContent = title;
-    confirmationModal.querySelector("#confirmation-message").textContent =
-      message;
-    confirmationModal.classList.add("show");
-    const confirmBtn = confirmationModal.querySelector(
-      "#confirmation-confirm-btn"
-    );
-    const cancelBtn = confirmationModal.querySelector(
-      "#confirmation-cancel-btn"
-    );
-    const confirmHandler = () => {
-      onConfirm();
-      confirmationModal.classList.remove("show");
-      cleanup();
-    };
-    const cancelHandler = () => {
-      confirmationModal.classList.remove("show");
-      cleanup();
-    };
-    const cleanup = () => {
-      confirmBtn.removeEventListener("click", confirmHandler);
-      cancelBtn.removeEventListener("click", cancelHandler);
-    };
-    confirmBtn.addEventListener("click", confirmHandler);
-    cancelBtn.addEventListener("click", cancelHandler);
-  };
-
-  detailsModal.addEventListener("click", (e) => {
-    const whatsappBtn = e.target.closest("#whatsapp-btn");
-    const deleteTxBtn = e.target.closest(".delete-tx-btn");
-
-    if (whatsappBtn) {
-      const customerId = document.getElementById(
-        "transaction-customer-id"
-      ).value;
-      const customer = [...allCustomers.active, ...allCustomers.settled].find(
-        (c) => c.id === customerId
-      );
-      if (!customer) {
-        showToast("error", "Error", "Could not find customer data.");
-        return;
-      }
-
-      const formattedPhone = formatPhoneNumberForWhatsApp(customer.phone);
-      if (!formattedPhone) {
-        showToast(
-          "error",
-          "Invalid Phone",
-          "Customer does not have a valid 10-digit phone number."
-        );
-        return;
-      }
-
-      toggleButtonLoading(whatsappBtn, true, "Preparing PDF...");
-
-      populatePdfTemplate(customer);
-
-      const elementToPrint = document.getElementById("invoice");
-      const dateStr = new Date()
-        .toLocaleDateString("en-IN", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        })
-        .replace(/\//g, "-");
-      const options = {
-        margin: 0,
-        filename: `${customer.name}_Ledger_${dateStr}.pdf`,
-        image: { type: "jpeg", quality: 1.0 },
-        html2canvas: {
-          scale: 4,
-          dpi: 300,
-          useCORS: true,
-          letterRendering: true,
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-      };
-
-      html2pdf()
-        .from(elementToPrint)
-        .set(options)
-        .toPdf()
-        .get("pdf")
-        .then(function (pdf) {
-          const totalPages = pdf.internal.getNumberOfPages();
-          const rbiLogoUrl = "images/rbi_watermark.png";
-          for (let i = 1; i <= totalPages; i++) {
-            pdf.setPage(i);
-            pdf.setGState(new pdf.GState({ opacity: 0.05 }));
-
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const logoSizeInMM = 132;
-
-            pdf.addImage(
-              rbiLogoUrl,
-              "PNG",
-              (pageWidth - logoSizeInMM) / 2,
-              (pageHeight - logoSizeInMM) / 2,
-              logoSizeInMM,
-              logoSizeInMM
-            );
-
-            pdf.setGState(new pdf.GState({ opacity: 1 }));
-          }
-        })
-        .save()
-        .then(function () {
-          toggleButtonLoading(whatsappBtn, false, "Send on WhatsApp");
-          showToast(
-            "success",
-            "PDF Generated",
-            "Your PDF has been downloaded."
-          );
-
-          const text = encodeURIComponent(
-            `Hello ${customer.name}, find your attached ledger statement here.`
-          );
-          const whatsappUrl = `https://wa.me/${formattedPhone}?text=${text}`;
-          window.open(whatsappUrl, "_blank");
-        })
-        .catch((err) => {
-          showToast("error", "PDF Error", "Could not generate the PDF file.");
-          console.error(err);
-          toggleButtonLoading(whatsappBtn, false);
-        });
-    }
-    if (deleteTxBtn) {
-      const transactionId = Number(deleteTxBtn.dataset.txId);
-      const customerId = document.getElementById(
-        "transaction-customer-id"
-      ).value;
-
-      if (!transactionId || !customerId) {
-        showToast(
-          "error",
-          "Error",
-          "Could not identify transaction or customer."
-        );
-        return;
-      }
-
-      showConfirmation(
-        "Delete Transaction?",
-        "Are you sure you want to permanently delete this transaction record? This action cannot be undone.",
-        async () => {
-          try {
-            const customerRef = db.collection("customers").doc(customerId);
-            const doc = await customerRef.get();
-            if (!doc.exists) throw new Error("Customer not found.");
-
-            const customerData = doc.data();
-            const updatedTransactions = customerData.transactions.filter(
-              (tx) => tx.id !== transactionId
-            );
-
-            await customerRef.update({ transactions: updatedTransactions });
-
-            showToast(
-              "success",
-              "Deleted",
-              "The transaction has been removed."
-            );
-            await loadData();
-            showCustomerDetails(customerId);
-          } catch (error) {
-            showToast("error", "Delete Failed", error.message);
-            console.error("Error deleting transaction:", error);
-          }
-        }
-      );
-    }
-  });
-
-  const populatePdfTemplate = (customer) => {
-    const { loans, payments, lenderTotal, borrowerTotal, netBalanceDue } =
-      calculateLedgers(customer);
-
-    document.getElementById("pdf-tpl-customer-name").textContent =
-      customer.name;
-    document.getElementById("pdf-tpl-generation-date").textContent =
-      new Date().toLocaleDateString("en-IN");
-
-    const now = new Date();
-    const timestamp = `Generated: ${now.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })} at ${now.toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    })}`;
-    document.getElementById("pdf-tpl-timestamp").textContent = timestamp;
-
-    const formatMonthlyRate = (tx) => {
-      const annualRate = tx.rate || customer.interestRate;
-      const monthlyRate = annualRate / 12;
-      return (
-        monthlyRate.toLocaleString("en-IN", {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 2,
-        }) + "%"
-      );
-    };
-
-    const lenderTbody = document.querySelector("#pdf-tpl-lender-table tbody");
-    lenderTbody.innerHTML = "";
-    loans
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .forEach((tx) => {
-        const row = `
-            <tr>
-                <td>${new Date(tx.date).toLocaleDateString("en-IN")}</td>
-                <td>Payment Given</td>
-                <td>${formatMonthlyRate(tx)}</td>
-                <td class="text-right">${formatCurrency(tx.amount)}</td>
-                <td class="text-right">${formatCurrency(tx.interest)}</td>
-                <td class="text-right">${formatCurrency(tx.total)}</td>
-            </tr>
-        `;
-        lenderTbody.innerHTML += row;
-      });
-
-    const borrowerTable = document.getElementById("pdf-tpl-borrower-table");
-    const noBorrowerPaymentsMsg = document.getElementById(
-      "pdf-no-borrower-payments"
-    );
-
-    if (payments.length === 0) {
-      borrowerTable.classList.add("hidden");
-      noBorrowerPaymentsMsg.classList.remove("hidden");
-    } else {
-      borrowerTable.classList.remove("hidden");
-      noBorrowerPaymentsMsg.classList.add("hidden");
-      const borrowerTbody = borrowerTable.querySelector("tbody");
-      borrowerTbody.innerHTML = "";
-      payments
-        .sort((a, b) => new Date(a.date) - new Date(b.date))
-        .forEach((tx) => {
-          const interestDisplay =
-            customer.isSimpleInterest && tx.type === "payment"
-              ? formatCurrency(0)
-              : formatCurrency(tx.interest);
-          const row = `
-              <tr>
-                  <td>${new Date(tx.date).toLocaleDateString("en-IN")}</td>
-                  <td>Payment Received</td>
-                  <td>${formatMonthlyRate(tx)}</td>
-                  <td class="text-right">${formatCurrency(tx.amount)}</td>
-                  <td class="text-right">${interestDisplay}</td>
-                  <td class="text-right">${formatCurrency(tx.total)}</td>
-              </tr>
-          `;
-          borrowerTbody.innerHTML += row;
-        });
-    }
-
-    const summaryContainer = document.getElementById("pdf-tpl-summary");
-    const stamp = document.getElementById("pdf-tpl-stamp");
-    stamp.className = "stamp-image hidden";
-
-    if (customer.status === "settled") {
-      const totalGiven = (customer.transactions || [])
-        .filter((t) => t.type === "loan")
-        .reduce((sum, t) => sum + t.amount, 0);
-      const totalReceived = (customer.transactions || [])
-        .filter((t) => t.type === "payment")
-        .reduce((sum, t) => sum + t.amount, 0);
-      const netProfit = totalReceived - totalGiven;
-      const profitLossLabel = netProfit >= 0 ? "Net Profit" : "Net Loss";
-
-      summaryContainer.innerHTML = `
-            <table>
-                <tr><td class="summary-label">Total Amount Given:</td><td class="text-right">${formatCurrency(
-                  totalGiven
-                )}</td></tr>
-                <tr><td class="summary-label">Total Amount Received:</td><td class="text-right">${formatCurrency(
-                  totalReceived
-                )}</td></tr>
-                <tr class="summary-total"><td class="summary-label">${profitLossLabel}:</td><td class="text-right">${formatCurrency(
-        netProfit
-      )}</td></tr>
-            </table>`;
-      stamp.textContent = "SETTLED";
-      stamp.classList.remove("hidden", "stamp-paid");
-      stamp.classList.add("stamp-settled");
-    } else {
-      summaryContainer.innerHTML = `
-            <table>
-                <tr><td class="summary-label">Total Given (with Interest):</td><td class="text-right">${formatCurrency(
-                  lenderTotal
-                )}</td></tr>
-                <tr><td class="summary-label">Total Received (with Interest):</td><td class="text-right">${formatCurrency(
-                  borrowerTotal
-                )}</td></tr>
-                <tr class="summary-total"><td class="summary-label">Final Net Amount Due:</td><td class="text-right">${formatCurrency(
-                  netBalanceDue
-                )}</td></tr>
-            </table>`;
-      if (netBalanceDue <= 0) {
-        stamp.textContent = "PAID";
-        stamp.classList.remove("hidden", "stamp-settled");
-        stamp.classList.add("stamp-paid");
-      }
-    }
-
-    const issueDate = new Date();
-    const referenceId = `KPS/LEGAL/${customer.name
-      .substring(0, 3)
-      .toUpperCase()}/${issueDate.getFullYear()}${String(
-      issueDate.getMonth() + 1
-    ).padStart(2, "0")}`;
-
-    document.getElementById("pdf-tpl-reference-id").textContent = referenceId;
-    document.getElementById("pdf-tpl-issue-date").textContent =
-      issueDate.toLocaleDateString("en-IN");
-
-    const legalInfoUrl = "https://www.mha.gov.in/en/acts";
-
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
-      legalInfoUrl
-    )}`;
-
-    document.getElementById("pdf-tpl-qr-code").src = qrCodeUrl;
-  };
-  document
-    .getElementById("transaction-form")
-    .addEventListener("submit", async (e) => {
+  function initializeEventListeners() {
+    getEl("login-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const customerId = document.getElementById(
-        "transaction-customer-id"
-      ).value;
-      const amount = parseFloat(
-        document.getElementById("transaction-amount").value
-      );
-      const date = document.getElementById("transaction-date").value;
-      const rate = parseFloat(
-        document.getElementById("transaction-rate").value
-      );
-      const type = document.querySelector(
-        'input[name="transaction-type"]:checked'
-      ).value;
-
-      if (isNaN(amount) || amount <= 0 || !date || isNaN(rate)) {
-        showToast(
-          "error",
-          "Invalid Input",
-          "Please enter a valid amount, date, and interest rate."
-        );
-        return;
-      }
-
-      const btn = document.getElementById("submit-transaction-btn");
-      toggleButtonLoading(btn, true, "Saving...");
-
-      const newTransaction = {
-        amount,
-        date,
-        type,
-        rate,
-        id: Date.now(),
-      };
-
+      const btn = getEl("login-btn");
+      toggleButtonLoading(btn, true, "Logging In...");
       try {
-        await db
-          .collection("customers")
-          .doc(customerId)
-          .update({
-            transactions:
-              firebase.firestore.FieldValue.arrayUnion(newTransaction),
-          });
-        await loadData();
-        showCustomerDetails(customerId);
-        document.getElementById("transaction-form").reset();
-        document.getElementById("tx-type-payment").checked = true;
-
-        const customer = allCustomers.active.find((c) => c.id === customerId);
-        if (customer) {
-          document.getElementById("transaction-rate").value =
-            customer.interestRate;
-        }
-
-        showToast(
-          "success",
-          "Transaction Recorded",
-          `New ${type} has been saved.`
+        await auth.signInWithEmailAndPassword(
+          getEl("login-email").value,
+          getEl("login-password").value
         );
       } catch (error) {
-        showToast("error", "Update Failed", error.message);
-      } finally {
+        showToast("error", "Login Failed", error.message);
         toggleButtonLoading(btn, false);
       }
     });
 
-  document
-    .getElementById("settle-account-btn")
-    .addEventListener("click", (e) => {
-      const customerId = e.currentTarget.dataset.id;
-      showConfirmation(
-        "Settle Account?",
-        'This will mark the loan as cleared and move the customer to "Settled Accounts". This action cannot be undone.',
-        async () => {
+    document.body.addEventListener("click", async (e) => {
+      const target = e.target;
+      const button = target.closest("button");
+      if (target.id === "forgot-password-link") {
+        e.preventDefault();
+        const email = prompt(
+          "Please enter your email to receive a password reset link:"
+        );
+        if (email) {
           try {
-            await db
-              .collection("customers")
-              .doc(customerId)
-              .update({ status: "settled" });
-            detailsModal.classList.remove("show");
+            await auth.sendPasswordResetEmail(email);
             showToast(
               "success",
-              "Account Settled",
-              "The account has been cleared."
+              "Email Sent",
+              "Password reset link sent to your email."
             );
-            await loadData();
           } catch (error) {
             showToast("error", "Error", error.message);
           }
         }
+      }
+      if (
+        target.closest("#mobile-menu-btn") ||
+        target.closest("#sidebar-overlay")
+      ) {
+        getEl("sidebar")?.classList.toggle("show");
+        getEl("sidebar-overlay")?.classList.toggle("show");
+        getEl("mobile-menu-btn")?.classList.toggle("is-hidden");
+      }
+      const menuItem = target.closest(".menu-item");
+      if (menuItem) {
+        e.preventDefault();
+        document
+          .querySelectorAll(".menu-item")
+          .forEach((i) => i.classList.remove("active"));
+        menuItem.classList.add("active");
+        const sectionId = `${menuItem.dataset.section}-section`;
+        document
+          .querySelectorAll(".section-content")
+          .forEach((s) => s.classList.remove("is-active"));
+        getEl(sectionId)?.classList.add("is-active");
+        getEl("section-title").textContent =
+          menuItem.querySelector("span").textContent;
+        if (getEl("sidebar")?.classList.contains("show")) {
+          getEl("sidebar")?.classList.remove("show");
+          getEl("sidebar-overlay")?.classList.remove("show");
+        }
+      }
+      const customerItemInfo = target.closest(
+        ".customer-info, .view-details-prompt, .activity-item[data-id]"
       );
-    });
-
-  document
-    .getElementById("delete-account-btn")
-    .addEventListener("click", (e) => {
-      const customerId = e.currentTarget.dataset.id;
-      showConfirmation(
-        "Delete Record Permanently?",
-        `Are you sure you want to delete this settled record? All its data will be lost forever.`,
-        async () => {
+      if (customerItemInfo && customerItemInfo.dataset.id) {
+        showCustomerDetails(customerItemInfo.dataset.id);
+      }
+      if (target.closest(".modal-close, [data-close-modal]")) {
+        target.closest(".modal").classList.remove("show");
+      }
+      if (button) {
+        if (button.classList.contains("emi-pay-btn")) {
+          const customerId = button.dataset.id;
+          const month = parseInt(button.dataset.month, 10);
+          toggleButtonLoading(button, true, "...");
+          const customer = allCustomers.active.find((c) => c.id === customerId);
+          if (!customer) {
+            showToast("error", "Error", "Customer not found.");
+            toggleButtonLoading(button, false);
+            return;
+          }
+          const emiIndex = customer.emiSchedule.findIndex(
+            (e) => e.month === month
+          );
+          const newStatus =
+            customer.emiSchedule[emiIndex].status === "Paid" ? "Due" : "Paid";
+          if (
+            newStatus === "Paid" &&
+            emiIndex > 0 &&
+            customer.emiSchedule[emiIndex - 1].status !== "Paid"
+          ) {
+            showToast(
+              "error",
+              "Action Denied",
+              "Please pay previous EMIs first."
+            );
+            toggleButtonLoading(button, false);
+            return;
+          }
+          if (
+            newStatus === "Due" &&
+            emiIndex < customer.emiSchedule.length - 1 &&
+            customer.emiSchedule[emiIndex + 1].status === "Paid"
+          ) {
+            showToast(
+              "error",
+              "Action Denied",
+              "Please mark later EMIs as unpaid first."
+            );
+            toggleButtonLoading(button, false);
+            return;
+          }
+          const updatedSchedule = JSON.parse(
+            JSON.stringify(customer.emiSchedule)
+          );
+          updatedSchedule[emiIndex].status = newStatus;
           try {
-            await db.collection("customers").doc(customerId).delete();
-            detailsModal.classList.remove("show");
+            await db
+              .collection("customers")
+              .doc(customerId)
+              .update({ emiSchedule: updatedSchedule });
             showToast(
               "success",
-              "Record Deleted",
-              "The settled account has been permanently removed."
+              "Status Updated",
+              `EMI for month ${month} marked as ${newStatus}.`
             );
-            await loadData();
+            if (newStatus === "Paid") {
+              logActivity("EMI_PAID", {
+                customerName: customer.name,
+                amount: updatedSchedule[emiIndex].emi,
+              });
+            }
+            await loadAndRenderAll();
+            showCustomerDetails(customerId);
           } catch (error) {
-            showToast("error", "Delete Failed", error.message);
+            showToast("error", "Update Failed", error.message);
+            toggleButtonLoading(button, false);
           }
+        } else if (button.classList.contains("delete-activity-btn")) {
+          const activityId = button.dataset.id;
+          showConfirmation(
+            "Delete Activity?",
+            "Are you sure you want to delete this activity log?",
+            async () => {
+              try {
+                await db.collection("activities").doc(activityId).delete();
+                getEl(`activity-${activityId}`).remove();
+                showToast("success", "Deleted", "Activity log removed.");
+              } catch (error) {
+                showToast("error", "Delete Failed", error.message);
+              }
+            }
+          );
+        } else if (button.classList.contains("delete-customer-btn")) {
+          const customerId = button.dataset.id;
+          showConfirmation(
+            "Delete Customer?",
+            "This will permanently delete this customer and all their loan data. This action cannot be undone.",
+            async () => {
+              try {
+                await db.collection("customers").doc(customerId).delete();
+                showToast(
+                  "success",
+                  "Customer Deleted",
+                  "The customer record has been permanently removed."
+                );
+                await loadAndRenderAll();
+              } catch (e) {
+                showToast("error", "Delete Failed", e.message);
+              }
+            }
+          );
+        } else if (button.id === "view-history-btn") {
+          const customer = [
+            ...allCustomers.active,
+            ...allCustomers.settled,
+          ].find((c) => c.id === button.dataset.id);
+          if (customer && customer.history) {
+            const historyBody = getEl("history-modal-body");
+            historyBody.innerHTML =
+              customer.history
+                .map((record, index) => {
+                  const details = record.loanDetails;
+                  const paidOnThisLoan = record.emiSchedule
+                    .filter((e) => e.status === "Paid")
+                    .reduce((sum, emi) => sum + emi.emi, 0);
+                  return `<div class="history-card"><div class="history-card-header"><h3>Previous Loan #${
+                    customer.history.length - index
+                  }</h3><span class="date">Refinanced on: ${
+                    record.settledDate
+                  }</span></div><div class="history-card-body"><div class="history-stat"><span class="label">Principal</span><span class="value">${formatCurrency(
+                    details.principal
+                  )}</span></div><div class="history-stat"><span class="label">Interest Rate</span><span class="value">${
+                    details.annualRate
+                  }%</span></div><div class="history-stat"><span class="label">Tenure</span><span class="value">${
+                    details.tenureMonths
+                  } Months</span></div><div class="history-stat"><span class="label">Monthly EMI</span><span class="value">${formatCurrency(
+                    details.emiAmount
+                  )}</span></div></div><div class="history-card-footer"><div class="history-stat"><span class="label">Total Paid on this Loan</span><span class="value">${formatCurrency(
+                    paidOnThisLoan
+                  )} (${
+                    record.emiSchedule.filter((e) => e.status === "Paid").length
+                  }/${
+                    record.emiSchedule.length
+                  } EMIs)</span></div></div></div>`;
+                })
+                .join("") || "<p>No history found.</p>";
+            getEl("history-modal").classList.add("show");
+          }
+        } else if (button.id === "clear-all-activities-btn") {
+          showConfirmation(
+            "Clear All Activities?",
+            "This will delete all activity logs permanently. Are you sure?",
+            async () => {
+              const snapshot = await db
+                .collection("activities")
+                .where("owner_uid", "==", currentUser.uid)
+                .get();
+              const batch = db.batch();
+              snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+              await batch.commit();
+              recentActivities = [];
+              renderActivityLog();
+              showToast(
+                "success",
+                "All Cleared",
+                "All activity logs have been deleted."
+              );
+            }
+          );
+        } else if (
+          button.id === "logout-btn" ||
+          button.id === "logout-settings-btn"
+        ) {
+          auth.signOut();
+        } else if (button.id === "theme-toggle-btn") {
+          setTheme(
+            document.documentElement.dataset.theme === "dark" ? "light" : "dark"
+          );
+        } else if (button.id === "main-add-customer-btn") {
+          getEl("customer-form").reset();
+          getEl("customer-id").value = "";
+          getEl("customer-form-modal-title").textContent = "Add New Customer";
+          getEl("loan-date").value = new Date().toISOString().split("T")[0];
+          getEl("loan-details-fields").style.display = "block";
+          getEl("customer-form-modal").classList.add("show");
+        } else if (button.id === "edit-customer-info-btn") {
+          const customer = [
+            ...allCustomers.active,
+            ...allCustomers.settled,
+          ].find((c) => c.id === button.dataset.id);
+          if (!customer) return;
+          getEl("customer-form").reset();
+          getEl("customer-id").value = customer.id;
+          getEl("customer-name").value = customer.name;
+          getEl("customer-phone").value = customer.phone || "";
+          getEl("customer-father-name").value = customer.fatherName || "";
+          getEl("customer-mother-name").value = customer.motherName || "";
+          getEl("customer-address").value = customer.address || "";
+          getEl("customer-aadhar").value = customer.aadhar || "";
+          getEl("customer-pan").value = customer.pan || "";
+          getEl("loan-details-fields").style.display = "none";
+          getEl("customer-form-modal-title").textContent = "Edit Customer Info";
+          getEl("customer-details-modal").classList.remove("show");
+          getEl("customer-form-modal").classList.add("show");
+        } else if (button.id === "settle-loan-btn") {
+          const customer = allCustomers.active.find(
+            (c) => c.id === button.dataset.id
+          );
+          if (!customer) return;
+          showConfirmation(
+            "Settle Loan?",
+            "This will move the account to 'Settled'. Are you sure?",
+            async () => {
+              try {
+                await db
+                  .collection("customers")
+                  .doc(button.dataset.id)
+                  .update({ status: "settled" });
+                await logActivity("LOAN_SETTLED", {
+                  customerName: customer.name,
+                });
+                showToast(
+                  "success",
+                  "Loan Settled",
+                  "Account moved to settled."
+                );
+                getEl("customer-details-modal").classList.remove("show");
+                await loadAndRenderAll();
+              } catch (error) {
+                showToast("error", "Settle Failed", error.message);
+              }
+            }
+          );
+        } else if (button.id === "refinance-loan-btn") {
+          const customer = allCustomers.active.find(
+            (c) => c.id === button.dataset.id
+          );
+          if (!customer) return;
+          const paid = customer.emiSchedule.filter((e) => e.status === "Paid");
+          const outstanding =
+            paid.length > 0
+              ? paid[paid.length - 1].remainingBalance
+              : customer.loanDetails.principal;
+          getEl("refinance-customer-id").value = customer.id;
+          getEl("refinance-outstanding").textContent =
+            formatCurrency(outstanding);
+          getEl("refinance-form").reset();
+          getEl("refinance-new-principal").textContent =
+            formatCurrency(outstanding);
+          getEl("refinance-new-amount").value = 0;
+          getEl("refinance-modal").classList.add("show");
+        } else if (button.id === "export-active-btn") {
+          exportToExcel(allCustomers.active, "Active_Customers_Report.xlsx");
+        } else if (button.id === "export-settled-btn") {
+          exportToExcel(allCustomers.settled, "Settled_Customers_Report.xlsx");
+        } else if (button.id === "export-backup-btn") {
+          // New Export Logic
+          try {
+            const backupData = {
+              version: "1.0.0",
+              exportedAt: new Date().toISOString(),
+              customers: allCustomers,
+            };
+            const dataStr = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `loan-manager-backup-${
+              new Date().toISOString().split("T")[0]
+            }.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(
+              "success",
+              "Export Successful",
+              "Your data has been downloaded."
+            );
+          } catch (e) {
+            showToast("error", "Export Failed", e.message);
+          }
+        } else if (button.id === "import-backup-btn") {
+          // New Import Logic
+          const fileInput = getEl("import-backup-input");
+          const file = fileInput.files[0];
+          if (!file) {
+            showToast(
+              "error",
+              "No File",
+              "Please choose a backup file to import."
+            );
+            return;
+          }
+          showConfirmation(
+            "Overwrite All Data?",
+            "Importing this file will permanently delete ALL your current customers and activities, replacing them with the data from the backup. This cannot be undone. Are you sure you want to proceed?",
+            () => {
+              const reader = new FileReader();
+              reader.onload = async (event) => {
+                try {
+                  const backup = JSON.parse(event.target.result);
+                  if (
+                    !backup.customers ||
+                    !backup.customers.active ||
+                    !backup.customers.settled
+                  ) {
+                    throw new Error("Invalid backup file format.");
+                  }
+                  toggleButtonLoading(button, true, "Importing...");
+
+                  const batch = db.batch();
+
+                  const existingActive = await db
+                    .collection("customers")
+                    .where("owner", "==", currentUser.uid)
+                    .where("status", "==", "active")
+                    .get();
+                  const existingSettled = await db
+                    .collection("customers")
+                    .where("owner", "==", currentUser.uid)
+                    .where("status", "==", "settled")
+                    .get();
+                  existingActive.docs.forEach((doc) => batch.delete(doc.ref));
+                  existingSettled.docs.forEach((doc) => batch.delete(doc.ref));
+
+                  [
+                    ...backup.customers.active,
+                    ...backup.customers.settled,
+                  ].forEach((cust) => {
+                    const newDocRef = db.collection("customers").doc();
+                    const newCustData = {
+                      ...cust,
+                      owner: currentUser.uid,
+                      createdAt: new Date(),
+                    };
+                    delete newCustData.id;
+                    batch.set(newDocRef, newCustData);
+                  });
+
+                  await batch.commit();
+
+                  showToast(
+                    "success",
+                    "Import Complete",
+                    "Your data has been restored. Refreshing..."
+                  );
+                  await loadAndRenderAll();
+                } catch (e) {
+                  showToast("error", "Import Failed", e.message);
+                } finally {
+                  toggleButtonLoading(button, false);
+                }
+              };
+              reader.onerror = () => {
+                showToast(
+                  "error",
+                  "Read Error",
+                  "Could not read the selected file."
+                );
+              };
+              reader.readAsText(file);
+            }
+          );
         }
-      );
+      }
     });
-
-  document
-    .querySelectorAll(".modal .modal-close, .modal [data-close-modal]")
-    .forEach((el) =>
-      el.addEventListener("click", (e) =>
-        e.target.closest(".modal").classList.remove("show")
-      )
-    );
-
-  auth.onAuthStateChanged((user) => {
-    if (user) {
-      currentUser = user;
-      authContainer.classList.add("hidden");
-      adminDashboard.classList.remove("hidden");
-      loadData();
-    } else {
-      currentUser = null;
-      allCustomers = { active: [], settled: [] };
-      authContainer.classList.remove("hidden");
-      adminDashboard.classList.add("hidden");
-    }
-  });
-
-  logoutBtns.forEach((btn) =>
-    btn.addEventListener("click", () => auth.signOut())
-  );
-
-  interestForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const p = parseFloat(document.getElementById("calc-principal").value);
-    const r = parseFloat(document.getElementById("calc-rate").value);
-    const y = parseInt(document.getElementById("calc-years").value) || 0;
-    const m = parseInt(document.getElementById("calc-months").value) || 0;
-    const d = parseInt(document.getElementById("calc-days").value) || 0;
-    if (isNaN(p) || isNaN(r)) {
-      showToast("error", "Invalid Input", "Principal and Rate are required.");
-      return;
-    }
-
-    const startDate = new Date();
-    const endDate = new Date(startDate);
-    endDate.setFullYear(endDate.getFullYear() + y);
-    endDate.setMonth(endDate.getMonth() + m);
-    endDate.setDate(endDate.getDate() + d);
-
-    const { principal, interest, total, duration } = calculateInterest(
-      p,
-      r,
-      startDate,
-      endDate,
-      false
-    );
-    document.getElementById(
-      "calc-result-display"
-    ).innerHTML = `<div class="detail-item"><label>Principal</label><p>${formatCurrency(
-      principal
-    )}</p></div><div class="detail-item"><label>Interest Earned</label><p>${formatCurrency(
-      interest
-    )}</p></div><div class="detail-item"><label>Total Amount</label><p>${formatCurrency(
-      total
-    )}</p></div><div class="detail-item"><label>Duration</label><p>${
-      duration.years
-    }Y, ${duration.months}M, ${duration.days}D</p></div>`;
-    document.getElementById("calc-results").classList.remove("hidden");
-  });
-  interestForm.addEventListener("reset", () =>
-    document.getElementById("calc-results").classList.add("hidden")
-  );
-
-  document
-    .getElementById("change-password-form")
-    .addEventListener("submit", async (e) => {
+    document.body.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const currentPassword = document.getElementById("current-password").value;
-      const newPassword = document.getElementById("new-password").value;
-      const confirmPassword = document.getElementById("confirm-password").value;
-      if (newPassword !== confirmPassword) {
-        showToast("error", "Error", "New passwords do not match.");
-        return;
-      }
-      if (newPassword.length < 6) {
-        showToast("error", "Error", "Password must be at least 6 characters.");
-        return;
-      }
-
-      const btn = document.getElementById("change-password-btn");
-      toggleButtonLoading(btn, true, "Changing...");
-      try {
-        const user = auth.currentUser;
-        const credential = firebase.auth.EmailAuthProvider.credential(
-          user.email,
-          currentPassword
-        );
-        await user.reauthenticateWithCredential(credential);
-        await user.updatePassword(newPassword);
-        showToast("success", "Success", "Password changed successfully.");
-        e.target.reset();
-      } catch (error) {
-        showToast("error", "Error", error.message);
-      } finally {
-        toggleButtonLoading(btn, false);
+      const form = e.target;
+      if (form.id === "customer-form") {
+        const id = getEl("customer-id").value;
+        const saveBtn = getEl("customer-modal-save");
+        toggleButtonLoading(saveBtn, true, id ? "Updating..." : "Saving...");
+        try {
+          const data = {
+            name: getEl("customer-name").value,
+            phone: getEl("customer-phone").value,
+            fatherName: getEl("customer-father-name").value,
+            motherName: getEl("customer-mother-name").value,
+            address: getEl("customer-address").value,
+            aadhar: getEl("customer-aadhar").value,
+            pan: getEl("customer-pan").value,
+          };
+          if (id) {
+            await db.collection("customers").doc(id).update(data);
+            showToast("success", "Customer Updated", "Details saved.");
+          } else {
+            const p = parseFloat(getEl("principal-amount").value),
+              r = parseFloat(getEl("interest-rate-modal").value),
+              n = parseInt(getEl("loan-tenure").value, 10),
+              d = getEl("loan-date").value;
+            if (isNaN(p) || isNaN(r) || isNaN(n) || !d)
+              throw new Error("Please fill all loan fields correctly.");
+            data.loanDetails = {
+              principal: p,
+              annualRate: r,
+              tenureMonths: n,
+              emiAmount: calculateEMI(p, r, n),
+              loanDate: d,
+            };
+            data.emiSchedule = generateAmortizationSchedule(p, r, n, d);
+            data.owner = currentUser.uid;
+            data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            data.status = "active";
+            await db.collection("customers").add(data);
+            await logActivity("NEW_LOAN", {
+              customerName: data.name,
+              amount: p,
+            });
+            showToast("success", "Customer Added", "New loan account created.");
+          }
+          getEl("customer-form-modal").classList.remove("show");
+          await loadAndRenderAll();
+        } catch (error) {
+          showToast("error", "Save Failed", error.message);
+        } finally {
+          toggleButtonLoading(saveBtn, false);
+        }
+      } else if (form.id === "emi-calculator-form") {
+        const p = parseFloat(getEl("calc-principal").value),
+          r = parseFloat(getEl("calc-rate").value),
+          n = parseInt(getEl("calc-tenure").value, 10);
+        if (isNaN(p) || isNaN(r) || isNaN(n)) {
+          showToast("error", "Invalid Input", "Please enter valid numbers.");
+          return;
+        }
+        const emi = calculateEMI(p, r, n);
+        const totalPayment = emi * n;
+        const totalInterest = totalPayment - p;
+        getEl("result-emi").textContent = formatCurrency(emi);
+        getEl("result-interest").textContent = formatCurrency(totalInterest);
+        getEl("result-total").textContent = formatCurrency(totalPayment);
+        getEl("calculator-results").classList.remove("hidden");
+      } else if (form.id === "refinance-form") {
+        const saveBtn = getEl("refinance-modal-save");
+        toggleButtonLoading(saveBtn, true, "Processing...");
+        try {
+          const customerId = getEl("refinance-customer-id").value;
+          const customerRef = db.collection("customers").doc(customerId);
+          const doc = await customerRef.get();
+          if (!doc.exists) throw new Error("Customer not found");
+          const data = doc.data();
+          const newAmount = parseFloat(getEl("refinance-new-amount").value);
+          const newRate = parseFloat(getEl("refinance-new-rate").value);
+          const newTenure = parseInt(getEl("refinance-new-tenure").value, 10);
+          const paid = data.emiSchedule.filter((e) => e.status === "Paid");
+          const outstanding =
+            paid.length > 0
+              ? paid[paid.length - 1].remainingBalance
+              : data.loanDetails.principal;
+          const newPrincipal = outstanding + newAmount;
+          const newStartDate = new Date().toISOString().split("T")[0];
+          const newSchedule = generateAmortizationSchedule(
+            newPrincipal,
+            newRate,
+            newTenure,
+            newStartDate
+          );
+          const newEmiAmount = calculateEMI(newPrincipal, newRate, newTenure);
+          const history = data.history || [];
+          history.push({
+            loanDetails: data.loanDetails,
+            emiSchedule: data.emiSchedule,
+            settledDate: newStartDate,
+            reason: "Refinanced",
+          });
+          await customerRef.update({
+            loanDetails: {
+              principal: newPrincipal,
+              annualRate: newRate,
+              tenureMonths: newTenure,
+              emiAmount: newEmiAmount,
+              loanDate: newStartDate,
+            },
+            emiSchedule: newSchedule,
+            history,
+          });
+          await logActivity("LOAN_REFINANCED", {
+            customerName: data.name,
+            amount: newPrincipal,
+          });
+          showToast("success", "Loan Refinanced", "New schedule created.");
+          getEl("refinance-modal").classList.remove("show");
+          getEl("customer-details-modal").classList.remove("show");
+          await loadAndRenderAll();
+        } catch (error) {
+          showToast("error", "Refinance Failed", error.message);
+        } finally {
+          toggleButtonLoading(saveBtn, false);
+        }
+      } else if (form.id === "change-password-form") {
+        const btn = getEl("change-password-btn");
+        toggleButtonLoading(btn, true, "Updating...");
+        const currentPass = getEl("current-password").value;
+        const newPass = getEl("new-password").value;
+        const confirmPass = getEl("confirm-password").value;
+        if (newPass !== confirmPass) {
+          showToast("error", "Mismatch", "New passwords do not match.");
+          toggleButtonLoading(btn, false);
+          return;
+        }
+        if (newPass.length < 6) {
+          showToast(
+            "error",
+            "Too Weak",
+            "Password should be at least 6 characters long."
+          );
+          toggleButtonLoading(btn, false);
+          return;
+        }
+        try {
+          const user = auth.currentUser;
+          const credential = firebase.auth.EmailAuthProvider.credential(
+            user.email,
+            currentPass
+          );
+          await user.reauthenticateWithCredential(credential);
+          await user.updatePassword(newPass);
+          showToast("success", "Success", "Password updated successfully.");
+          form.reset();
+        } catch (error) {
+          showToast(
+            "error",
+            "Authentication Failed",
+            "Incorrect current password or other error."
+          );
+          console.error("Password change error:", error);
+        } finally {
+          toggleButtonLoading(btn, false);
+        }
+      } else if (form.id === "change-email-form") {
+        const btn = getEl("change-email-btn");
+        toggleButtonLoading(btn, true, "Updating...");
+        const newEmail = getEl("new-email").value;
+        const currentPass = getEl("current-password-for-email").value;
+        try {
+          const user = auth.currentUser;
+          const credential = firebase.auth.EmailAuthProvider.credential(
+            user.email,
+            currentPass
+          );
+          await user.reauthenticateWithCredential(credential);
+          await user.updateEmail(newEmail);
+          await user.sendEmailVerification();
+          showToast(
+            "success",
+            "Verification Required",
+            "Email update initiated. Please check your new email inbox to verify the change."
+          );
+          form.reset();
+        } catch (error) {
+          let msg = "An error occurred.";
+          if (error.code === "auth/wrong-password") {
+            msg = "Incorrect current password.";
+          } else if (error.code === "auth/email-already-in-use") {
+            msg = "This email address is already in use.";
+          }
+          showToast("error", "Update Failed", msg);
+          console.error("Email change error:", error);
+        } finally {
+          toggleButtonLoading(btn, false);
+        }
       }
     });
+    document.body.addEventListener("change", (e) => {
+      if (e.target.id === "dark-mode-toggle") {
+        setTheme(e.target.checked ? "dark" : "light");
+      } else if (e.target.id === "import-backup-input") {
+        const fileName = e.target.files[0]
+          ? e.target.files[0].name
+          : "No file chosen";
+        getEl("file-name-display").textContent = fileName;
+      }
+    });
+    document.body.addEventListener("input", (e) => {
+      if (e.target.closest("#refinance-form")) {
+        const out =
+          parseFloat(
+            getEl("refinance-outstanding").textContent.replace(/[^0-9.-]+/g, "")
+          ) || 0;
+        const newAmt = parseFloat(getEl("refinance-new-amount").value) || 0;
+        getEl("refinance-new-principal").textContent = formatCurrency(
+          out + newAmt
+        );
+      } else if (e.target.id === "search-customers") {
+        const term = e.target.value.toLowerCase();
+        const filtered = allCustomers.active.filter((c) =>
+          c.name.toLowerCase().includes(term)
+        );
+        const listEl = getEl("customers-list");
+        if (listEl) {
+          const renderList = (element, data, type) => {
+            if (!element) return;
+            element.innerHTML = "";
+            if (data.length === 0) {
+              element.innerHTML = `<li class="activity-item" style="cursor:default;"><p>No customers found.</p></li>`;
+              return;
+            }
+            data.forEach((c) => {
+              const li = document.createElement("li");
+              li.className = "customer-item";
+              const detailsHtml = `<span>EMI: ${formatCurrency(
+                c.loanDetails.emiAmount
+              )}</span><span>Paid: ${
+                c.emiSchedule.filter((e) => e.status === "Paid").length
+              }/${c.emiSchedule.length}</span>`;
+              const deleteButton =
+                type === "settled"
+                  ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
+                  : "";
+              li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}"><span class="btn-text-desktop">View Details </span><i class="fas fa-arrow-right"></i></span></div>`;
+              element.appendChild(li);
+            });
+          };
+          renderList(listEl, filtered, "active");
+        }
+      }
+    });
+  }
 
-  document.getElementById("download-data-btn").addEventListener("click", () => {
-    const dataToDownload = {
-      active_accounts: allCustomers.active,
-      settled_accounts: allCustomers.settled,
-    };
-    if (
-      dataToDownload.active_accounts.length === 0 &&
-      dataToDownload.settled_accounts.length === 0
-    ) {
-      showToast("warning", "No Data", "There is no customer data to export.");
-      return;
-    }
-    const dataStr = JSON.stringify(
-      dataToDownload,
-      (key, value) => (value?.toDate ? value.toDate().toISOString() : value),
-      2
-    );
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kumar_pal_singh_export_${new Date()
-      .toISOString()
-      .slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  });
-
-  setTheme(localStorage.getItem("theme") || "light");
+  initializeEventListeners();
 });
