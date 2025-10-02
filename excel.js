@@ -1,9 +1,3 @@
-// This file requires the SheetJS library (xlsx.full.min.js) to be included in index.html
-
-/**
- * Exports a simple summary list of customers to an Excel file.
- * Used for the buttons on the Active and Settled account pages.
- */
 function exportToExcel(customers, fileName = "customer-data.xlsx") {
   if (!customers || customers.length === 0) {
     alert("No data to export.");
@@ -11,7 +5,6 @@ function exportToExcel(customers, fileName = "customer-data.xlsx") {
   }
 
   const flattenedData = customers.map((customer) => {
-    // *** FIX: Added robust check for data integrity ***
     if (!customer.loanDetails || !Array.isArray(customer.emiSchedule)) {
       return {
         Name: customer.name,

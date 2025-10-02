@@ -1,4 +1,3 @@
-// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyBG87TpDWEPzjuJ4rQVQT92ITXdo4FTqbQ",
   authDomain: "loanmanager-caa23.firebaseapp.com",
@@ -17,7 +16,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let recentActivities = [];
   let currentUser = null;
 
-  // --- Utility Functions ---
   const getEl = (id) => document.getElementById(id);
   const showToast = (type, title, message) => {
     const toastContainer = getEl("toast-container");
@@ -997,7 +995,6 @@ document.addEventListener("DOMContentLoaded", () => {
         } else if (button.id === "export-settled-btn") {
           exportToExcel(allCustomers.settled, "Settled_Customers_Report.xlsx");
         } else if (button.id === "export-backup-btn") {
-          // New Export Logic
           try {
             const backupData = {
               version: "1.0.0",
@@ -1025,7 +1022,6 @@ document.addEventListener("DOMContentLoaded", () => {
             showToast("error", "Export Failed", e.message);
           }
         } else if (button.id === "import-backup-btn") {
-          // New Import Logic
           const fileInput = getEl("import-backup-input");
           const file = fileInput.files[0];
           if (!file) {

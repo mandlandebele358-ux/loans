@@ -1,4 +1,3 @@
-// This file contains all logic for rendering dashboard charts.
 let portfolioChartInstance, profitChartInstance;
 Chart.register(ChartDataLabels);
 const getThemeColors = () => {
