@@ -1330,4 +1330,8 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
   .stat-card .stat-value {
     font-size: 1.5rem;
   }
+  .ola {
+    margin-left: 30px;
+    margin-top: -10px;
+  }
 }
