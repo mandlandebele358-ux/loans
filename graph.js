@@ -1,25 +1,51 @@
-/*
-Copyright (c) 2025 Avdesh Jadon (LoanManager)
-All Rights Reserved.
-Proprietary and Confidential – Unauthorized copying, modification, or distribution of this file,
-via any medium, is strictly prohibited without prior written consent from Avdesh Jadon.
-*/
-
-
 let portfolioChartInstance, profitChartInstance;
 Chart.register(ChartDataLabels);
 const getThemeColors = () => {
-  const isDarkMode = document.documentElement.dataset.theme === "dark";
+  const computedStyles = getComputedStyle(document.documentElement);
+
+  const parseRgb = (rgbString) => {
+    return rgbString.match(/\d+/g).map(Number);
+  };
+
+  const hexToRgba = (hex, alpha = 1) => {
+    if (!hex || !hex.startsWith("#")) return "rgba(0,0,0,0)";
+    let c;
+    if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+      c = hex.substring(1).split("");
+      if (c.length === 3) {
+        c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+      }
+      c = "0x" + c.join("");
+      return `rgba(${[(c >> 16) & 255, (c >> 8) & 255, c & 255].join(
+        ","
+      )},${alpha})`;
+    }
+    return "rgba(0,0,0,0)";
+  };
+
+  const primaryColor = computedStyles.getPropertyValue("--primary").trim();
+  let primaryTransColor = computedStyles
+    .getPropertyValue("--primary-t-08")
+    .trim();
+
+  // If --primary-t-08 is not a valid color or doesn't exist, create one.
+  if (!primaryTransColor || primaryTransColor.length === 0) {
+    if (primaryColor.startsWith("#")) {
+      primaryTransColor = hexToRgba(primaryColor, 0.2);
+    } else if (primaryColor.startsWith("rgb")) {
+      const rgbValues = parseRgb(primaryColor);
+      primaryTransColor = `rgba(${rgbValues[0]}, ${rgbValues[1]}, ${rgbValues[2]}, 0.2)`;
+    }
+  }
+
   return {
-    primary: isDarkMode ? "rgba(129, 140, 248, 1)" : "rgba(74, 85, 162, 1)",
-    primary_trans: isDarkMode
-      ? "rgba(129, 140, 248, 0.2)"
-      : "rgba(74, 85, 162, 0.2)",
-    success: isDarkMode ? "rgba(74, 222, 128, 1)" : "rgba(56, 161, 105, 1)",
-    danger: isDarkMode ? "rgba(248, 113, 113, 1)" : "rgba(229, 62, 62, 1)",
-    grid: isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
-    text: isDarkMode ? "#E2E8F0" : "#4A5568",
-    background: isDarkMode ? "#1e293b" : "#ffffff",
+    primary: primaryColor,
+    primary_trans: primaryTransColor,
+    success: computedStyles.getPropertyValue("--success").trim(),
+    danger: computedStyles.getPropertyValue("--danger").trim(),
+    grid: computedStyles.getPropertyValue("--border-color").trim(),
+    text: computedStyles.getPropertyValue("--text-dark").trim(),
+    background: computedStyles.getPropertyValue("--bg-card").trim(),
   };
 };
 function renderDashboardCharts(activeLoans, settledLoans, profitData) {
