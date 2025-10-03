@@ -1,3 +1,11 @@
+/*
+Copyright (c) 2025 Avdesh Jadon (LoanManager)
+All Rights Reserved.
+Proprietary and Confidential – Unauthorized copying, modification, or distribution of this file,
+via any medium, is strictly prohibited without prior written consent from Avdesh Jadon.
+*/
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyBG87TpDWEPzjuJ4rQVQT92ITXdo4FTqbQ",
   authDomain: "loanmanager-caa23.firebaseapp.com",

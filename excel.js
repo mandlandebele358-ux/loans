@@ -1,3 +1,11 @@
+/*
+Copyright (c) 2025 Avdesh Jadon (LoanManager)
+All Rights Reserved.
+Proprietary and Confidential – Unauthorized copying, modification, or distribution of this file,
+via any medium, is strictly prohibited without prior written consent from Avdesh Jadon.
+*/
+
+
 function exportToExcel(customers, fileName = "customer-data.xlsx") {
   if (!customers || customers.length === 0) {
     alert("No data to export.");
