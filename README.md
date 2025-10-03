@@ -8,8 +8,6 @@
 
 The application moves beyond simple record-keeping, offering an interactive dashboard, detailed customer and loan analytics, full data portability, and a secure, authenticated environment for data integrity.
 
-![Loan Manager Screenshot](https://i.imgur.com/3nOk974.png)
-
 *(**Note:** This is a sample screenshot. You can replace the link above with a real screenshot of your application's dashboard for a better visual representation.)*
 
 ---
