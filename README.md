@@ -110,7 +110,6 @@ To get a local copy up and running, follow these simple steps.
     -   Open the `script.js` file in your code editor.
     -   Replace the placeholder `firebaseConfig` object at the top of the file with the one you copied from your Firebase project.
     ```javascript
-    // Replace this with your own Firebase config
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_AUTH_DOMAIN",
