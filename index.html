@@ -1,10 +1,3 @@
-<!-- 
-Copyright (c) 2025 Avdesh Jadon (LoanManager)
-All Rights Reserved.
-Proprietary and Confidential – Unauthorized copying, modification, or distribution of this file,
-via any medium, is strictly prohibited without prior written consent from Avdesh Jadon.
- -->
-
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
   <head>
@@ -20,6 +13,7 @@ via any medium, is strictly prohibited without prior written consent from Avdesh
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="themes.css" />
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -94,7 +88,9 @@ via any medium, is strictly prohibited without prior written consent from Avdesh
     <div id="admin-dashboard" class="admin-container hidden">
       <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-          <h2 class="ola"><i class="fas fa-landmark"></i> <span>Loan Manager</span></h2>
+          <h2 class="ola">
+            <i class="fas fa-landmark"></i> <span>Loan Manager</span>
+          </h2>
         </div>
         <div class="sidebar-menu">
           <a href="#" class="menu-item active" data-section="dashboard"
@@ -116,6 +112,9 @@ via any medium, is strictly prohibited without prior written consent from Avdesh
           <a href="#" class="menu-item" data-section="settings"
             ><i class="fas fa-cog"></i><span>Settings</span></a
           >
+          <a href="#" id="change-theme-btn" class="menu-item">
+            <i class="fas fa-palette"></i><span>Change Theme</span>
+          </a>
         </div>
         <div class="sidebar-summary">
           <div class="summary-item">
@@ -432,10 +431,31 @@ via any medium, is strictly prohibited without prior written consent from Avdesh
         </div>
       </div>
     </div>
+
+    <div class="modal" id="theme-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Select a Theme</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="theme-modal-body">
+          <div class="theme-section">
+            <h4>Light Themes</h4>
+            <div class="theme-grid" id="light-themes-grid"></div>
+          </div>
+          <div class="theme-section">
+            <h4>Dark Themes</h4>
+            <div class="theme-grid" id="dark-themes-grid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="toast-container"></div>
 
     <script src="excel.js"></script>
     <script src="graph.js"></script>
+    <script src="theme-switcher.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

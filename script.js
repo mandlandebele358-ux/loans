@@ -1,11 +1,3 @@
-/*
-Copyright (c) 2025 Avdesh Jadon (LoanManager)
-All Rights Reserved.
-Proprietary and Confidential – Unauthorized copying, modification, or distribution of this file,
-via any medium, is strictly prohibited without prior written consent from Avdesh Jadon.
-*/
-
-
 const firebaseConfig = {
   apiKey: "AIzaSyBG87TpDWEPzjuJ4rQVQT92ITXdo4FTqbQ",
   authDomain: "loanmanager-caa23.firebaseapp.com",
@@ -19,8 +11,25 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
+// Global namespace for functions that need to be shared between scripts
+window.allCustomers = { active: [], settled: [] };
+window.processProfitData = (allCusts) => {
+  const data = [];
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  [...allCusts.active, ...allCusts.settled].forEach((customer) => {
+    if (customer.loanDetails && customer.emiSchedule) {
+      customer.emiSchedule.forEach((emi) => {
+        if (emi.status === "Paid" && new Date(emi.dueDate) <= today) {
+          data.push({ date: emi.dueDate, profit: emi.interestComponent });
+        }
+      });
+    }
+  });
+  return data;
+};
+
 document.addEventListener("DOMContentLoaded", () => {
-  let allCustomers = { active: [], settled: [] };
   let recentActivities = [];
   let currentUser = null;
 
@@ -130,26 +139,9 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Failed to log activity:", error);
     }
   };
-  const setTheme = (theme) => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("theme", theme);
-    const themeToggleBtn = getEl("theme-toggle-btn");
-    const darkModeToggle = getEl("dark-mode-toggle");
-    if (themeToggleBtn)
-      themeToggleBtn.innerHTML =
-        theme === "dark"
-          ? '<i class="fas fa-sun"></i>'
-          : '<i class="fas fa-moon"></i>';
-    if (darkModeToggle) darkModeToggle.checked = theme === "dark";
-    if (typeof renderDashboardCharts === "function") {
-      const profitData = processProfitData(allCustomers);
-      renderDashboardCharts(
-        allCustomers.active,
-        allCustomers.settled,
-        profitData
-      );
-    }
-  };
+
+  // The old setTheme function has been removed. theme-switcher.js now handles this.
+
   const calculateKeyStats = (activeLoans, settledLoans) => {
     const validActive = activeLoans.filter((c) => c.loanDetails);
     const validSettled = settledLoans.filter((c) => c.loanDetails);
@@ -192,21 +184,6 @@ document.addEventListener("DOMContentLoaded", () => {
       stats.totalOutstanding
     );
   };
-  const processProfitData = (allCusts) => {
-    const data = [];
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    [...allCusts.active, ...allCusts.settled].forEach((customer) => {
-      if (customer.loanDetails && customer.emiSchedule) {
-        customer.emiSchedule.forEach((emi) => {
-          if (emi.status === "Paid" && new Date(emi.dueDate) <= today) {
-            data.push({ date: emi.dueDate, profit: emi.interestComponent });
-          }
-        });
-      }
-    });
-    return data;
-  };
 
   const loadAndRenderAll = async () => {
     if (!currentUser) return;
@@ -232,11 +209,11 @@ document.addEventListener("DOMContentLoaded", () => {
             .limit(10)
             .get(),
         ]);
-      allCustomers.active = activeSnapshot.docs.map((doc) => ({
+      window.allCustomers.active = activeSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      allCustomers.settled = settledSnapshot.docs.map((doc) => ({
+      window.allCustomers.settled = settledSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
@@ -245,16 +222,16 @@ document.addEventListener("DOMContentLoaded", () => {
         ...doc.data(),
       }));
       const stats = calculateKeyStats(
-        allCustomers.active,
-        allCustomers.settled
+        window.allCustomers.active,
+        window.allCustomers.settled
       );
       populatePageContent(stats);
       updateSidebarStats(stats);
-      const profitData = processProfitData(allCustomers);
+      const profitData = window.processProfitData(window.allCustomers);
       if (typeof renderDashboardCharts === "function")
         renderDashboardCharts(
-          allCustomers.active,
-          allCustomers.settled,
+          window.allCustomers.active,
+          window.allCustomers.settled,
           profitData
         );
     } catch (error) {
@@ -385,10 +362,10 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         </div>
     </div>`;
-    setTheme(localStorage.getItem("theme") || "light");
+
     populateCustomerLists();
     populateTodaysCollection();
-    renderUpcomingAndOverdueEmis(allCustomers.active);
+    renderUpcomingAndOverdueEmis(window.allCustomers.active);
     renderActivityLog();
   };
   const renderActivityLog = () => {
@@ -470,14 +447,14 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     getEl(
       "active-accounts-section"
-    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Active Accounts (${allCustomers.active.length})</h3><button class="btn btn-outline" id="export-active-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><div class="form-group"><input type="text" id="search-customers" class="form-control" placeholder="Search active customers..." /></div><ul id="customers-list" class="customer-list"></ul></div>`;
-    renderList(getEl("customers-list"), allCustomers.active, "active");
+    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Active Accounts (${window.allCustomers.active.length})</h3><button class="btn btn-outline" id="export-active-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><div class="form-group"><input type="text" id="search-customers" class="form-control" placeholder="Search active customers..." /></div><ul id="customers-list" class="customer-list"></ul></div>`;
+    renderList(getEl("customers-list"), window.allCustomers.active, "active");
     getEl(
       "settled-accounts-section"
-    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Settled Accounts (${allCustomers.settled.length})</h3><button class="btn btn-outline" id="export-settled-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><ul id="settled-customers-list" class="customer-list"></ul></div>`;
+    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Settled Accounts (${window.allCustomers.settled.length})</h3><button class="btn btn-outline" id="export-settled-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><ul id="settled-customers-list" class="customer-list"></ul></div>`;
     renderList(
       getEl("settled-customers-list"),
-      allCustomers.settled,
+      window.allCustomers.settled,
       "settled"
     );
   };
@@ -533,7 +510,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const container = getEl("todays-collection-section");
     if (!container) return;
     const today = new Date().toISOString().split("T")[0];
-    const dueToday = allCustomers.active
+    const dueToday = window.allCustomers.active
       .map((cust) => {
         const dueEmi = cust.emiSchedule.find(
           (emi) => emi.dueDate === today && emi.status === "Due"
@@ -568,9 +545,10 @@ document.addEventListener("DOMContentLoaded", () => {
     )}</div></div></div><ul class="activity-list">${listHtml}</ul></div>`;
   };
   const showCustomerDetails = (customerId) => {
-    const customer = [...allCustomers.active, ...allCustomers.settled].find(
-      (c) => c.id === customerId
-    );
+    const customer = [
+      ...window.allCustomers.active,
+      ...window.allCustomers.settled,
+    ].find((c) => c.id === customerId);
     if (!customer) return;
     const modalBody = getEl("details-modal-body");
     getEl("details-modal-title").textContent = `Loan Details: ${customer.name}`;
@@ -676,7 +654,7 @@ document.addEventListener("DOMContentLoaded", () => {
       getEl("admin-dashboard").classList.remove("hidden");
       loadAndRenderAll();
     } else {
-      allCustomers = { active: [], settled: [] };
+      window.allCustomers = { active: [], settled: [] };
       recentActivities = [];
       getEl("auth-container").classList.remove("hidden");
       getEl("admin-dashboard").classList.add("hidden");
@@ -728,7 +706,8 @@ document.addEventListener("DOMContentLoaded", () => {
         getEl("sidebar-overlay")?.classList.toggle("show");
         getEl("mobile-menu-btn")?.classList.toggle("is-hidden");
       }
-      const menuItem = target.closest(".menu-item");
+
+      const menuItem = target.closest(".menu-item:not(#change-theme-btn)");
       if (menuItem) {
         e.preventDefault();
         document
@@ -761,7 +740,9 @@ document.addEventListener("DOMContentLoaded", () => {
           const customerId = button.dataset.id;
           const month = parseInt(button.dataset.month, 10);
           toggleButtonLoading(button, true, "...");
-          const customer = allCustomers.active.find((c) => c.id === customerId);
+          const customer = window.allCustomers.active.find(
+            (c) => c.id === customerId
+          );
           if (!customer) {
             showToast("error", "Error", "Customer not found.");
             toggleButtonLoading(button, false);
@@ -860,8 +841,8 @@ document.addEventListener("DOMContentLoaded", () => {
           );
         } else if (button.id === "view-history-btn") {
           const customer = [
-            ...allCustomers.active,
-            ...allCustomers.settled,
+            ...window.allCustomers.active,
+            ...window.allCustomers.settled,
           ].find((c) => c.id === button.dataset.id);
           if (customer && customer.history) {
             const historyBody = getEl("history-modal-body");
@@ -922,9 +903,10 @@ document.addEventListener("DOMContentLoaded", () => {
         ) {
           auth.signOut();
         } else if (button.id === "theme-toggle-btn") {
-          setTheme(
-            document.documentElement.dataset.theme === "dark" ? "light" : "dark"
-          );
+          // MODIFIED: Use the new global toggle function
+          if (window.toggleDarkMode) {
+            window.toggleDarkMode();
+          }
         } else if (button.id === "main-add-customer-btn") {
           getEl("customer-form").reset();
           getEl("customer-id").value = "";
@@ -934,8 +916,8 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-form-modal").classList.add("show");
         } else if (button.id === "edit-customer-info-btn") {
           const customer = [
-            ...allCustomers.active,
-            ...allCustomers.settled,
+            ...window.allCustomers.active,
+            ...window.allCustomers.settled,
           ].find((c) => c.id === button.dataset.id);
           if (!customer) return;
           getEl("customer-form").reset();
@@ -952,7 +934,7 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-details-modal").classList.remove("show");
           getEl("customer-form-modal").classList.add("show");
         } else if (button.id === "settle-loan-btn") {
-          const customer = allCustomers.active.find(
+          const customer = window.allCustomers.active.find(
             (c) => c.id === button.dataset.id
           );
           if (!customer) return;
@@ -981,7 +963,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           );
         } else if (button.id === "refinance-loan-btn") {
-          const customer = allCustomers.active.find(
+          const customer = window.allCustomers.active.find(
             (c) => c.id === button.dataset.id
           );
           if (!customer) return;
@@ -999,15 +981,21 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("refinance-new-amount").value = 0;
           getEl("refinance-modal").classList.add("show");
         } else if (button.id === "export-active-btn") {
-          exportToExcel(allCustomers.active, "Active_Customers_Report.xlsx");
+          exportToExcel(
+            window.allCustomers.active,
+            "Active_Customers_Report.xlsx"
+          );
         } else if (button.id === "export-settled-btn") {
-          exportToExcel(allCustomers.settled, "Settled_Customers_Report.xlsx");
+          exportToExcel(
+            window.allCustomers.settled,
+            "Settled_Customers_Report.xlsx"
+          );
         } else if (button.id === "export-backup-btn") {
           try {
             const backupData = {
               version: "1.0.0",
               exportedAt: new Date().toISOString(),
-              customers: allCustomers,
+              customers: window.allCustomers,
             };
             const dataStr = JSON.stringify(backupData, null, 2);
             const blob = new Blob([dataStr], { type: "application/json" });
@@ -1277,43 +1265,14 @@ document.addEventListener("DOMContentLoaded", () => {
         } finally {
           toggleButtonLoading(btn, false);
         }
-      } else if (form.id === "change-email-form") {
-        const btn = getEl("change-email-btn");
-        toggleButtonLoading(btn, true, "Updating...");
-        const newEmail = getEl("new-email").value;
-        const currentPass = getEl("current-password-for-email").value;
-        try {
-          const user = auth.currentUser;
-          const credential = firebase.auth.EmailAuthProvider.credential(
-            user.email,
-            currentPass
-          );
-          await user.reauthenticateWithCredential(credential);
-          await user.updateEmail(newEmail);
-          await user.sendEmailVerification();
-          showToast(
-            "success",
-            "Verification Required",
-            "Email update initiated. Please check your new email inbox to verify the change."
-          );
-          form.reset();
-        } catch (error) {
-          let msg = "An error occurred.";
-          if (error.code === "auth/wrong-password") {
-            msg = "Incorrect current password.";
-          } else if (error.code === "auth/email-already-in-use") {
-            msg = "This email address is already in use.";
-          }
-          showToast("error", "Update Failed", msg);
-          console.error("Email change error:", error);
-        } finally {
-          toggleButtonLoading(btn, false);
-        }
       }
     });
     document.body.addEventListener("change", (e) => {
       if (e.target.id === "dark-mode-toggle") {
-        setTheme(e.target.checked ? "dark" : "light");
+        // MODIFIED: Use the new global toggle function
+        if (window.toggleDarkMode) {
+          window.toggleDarkMode();
+        }
       } else if (e.target.id === "import-backup-input") {
         const fileName = e.target.files[0]
           ? e.target.files[0].name
@@ -1333,7 +1292,7 @@ document.addEventListener("DOMContentLoaded", () => {
         );
       } else if (e.target.id === "search-customers") {
         const term = e.target.value.toLowerCase();
-        const filtered = allCustomers.active.filter((c) =>
+        const filtered = window.allCustomers.active.filter((c) =>
           c.name.toLowerCase().includes(term)
         );
         const listEl = getEl("customers-list");
