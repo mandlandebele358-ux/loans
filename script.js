@@ -11,7 +11,6 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Global namespace for functions that need to be shared between scripts
 window.allCustomers = { active: [], settled: [] };
 window.processProfitData = (allCusts) => {
   const data = [];
@@ -139,8 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Failed to log activity:", error);
     }
   };
-
-  // The old setTheme function has been removed. theme-switcher.js now handles this.
 
   const calculateKeyStats = (activeLoans, settledLoans) => {
     const validActive = activeLoans.filter((c) => c.loanDetails);
@@ -587,8 +584,8 @@ document.addEventListener("DOMContentLoaded", () => {
       .charAt(0)
       .toUpperCase()}</div><h3 class="profile-name">${
       customer.name
-    }</h3><p class="profile-contact">${
-      customer.phone || "N/A"
+    }</h3><p class="profile-contact">${customer.phone || "N/A"} &bull; ${
+      customer.email || "N/A"
     }</p></div><div class="profile-section"><h4>Personal Details</h4><div class="profile-stat"><span class="label">Father's Name</span><span class="value">${
       customer.fatherName || "N/A"
     }</span></div><div class="profile-stat"><span class="label">Address</span><span class="value">${
@@ -739,13 +736,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (button.classList.contains("emi-pay-btn")) {
           const customerId = button.dataset.id;
           const month = parseInt(button.dataset.month, 10);
-          toggleButtonLoading(button, true, "...");
           const customer = window.allCustomers.active.find(
             (c) => c.id === customerId
           );
           if (!customer) {
             showToast("error", "Error", "Customer not found.");
-            toggleButtonLoading(button, false);
             return;
           }
           const emiIndex = customer.emiSchedule.findIndex(
@@ -753,6 +748,7 @@ document.addEventListener("DOMContentLoaded", () => {
           );
           const newStatus =
             customer.emiSchedule[emiIndex].status === "Paid" ? "Due" : "Paid";
+
           if (
             newStatus === "Paid" &&
             emiIndex > 0 &&
@@ -763,7 +759,6 @@ document.addEventListener("DOMContentLoaded", () => {
               "Action Denied",
               "Please pay previous EMIs first."
             );
-            toggleButtonLoading(button, false);
             return;
           }
           if (
@@ -776,35 +771,42 @@ document.addEventListener("DOMContentLoaded", () => {
               "Action Denied",
               "Please mark later EMIs as unpaid first."
             );
-            toggleButtonLoading(button, false);
             return;
           }
-          const updatedSchedule = JSON.parse(
-            JSON.stringify(customer.emiSchedule)
-          );
-          updatedSchedule[emiIndex].status = newStatus;
-          try {
-            await db
-              .collection("customers")
-              .doc(customerId)
-              .update({ emiSchedule: updatedSchedule });
-            showToast(
-              "success",
-              "Status Updated",
-              `EMI for month ${month} marked as ${newStatus}.`
-            );
-            if (newStatus === "Paid") {
-              logActivity("EMI_PAID", {
-                customerName: customer.name,
-                amount: updatedSchedule[emiIndex].emi,
-              });
+
+          showConfirmation(
+            "Confirm Status Change",
+            `Are you sure you want to mark this EMI as ${newStatus}?`,
+            async () => {
+              toggleButtonLoading(button, true, "...");
+              const updatedSchedule = JSON.parse(
+                JSON.stringify(customer.emiSchedule)
+              );
+              updatedSchedule[emiIndex].status = newStatus;
+              try {
+                await db
+                  .collection("customers")
+                  .doc(customerId)
+                  .update({ emiSchedule: updatedSchedule });
+                showToast(
+                  "success",
+                  "Status Updated",
+                  `EMI for month ${month} marked as ${newStatus}.`
+                );
+                if (newStatus === "Paid") {
+                  logActivity("EMI_PAID", {
+                    customerName: customer.name,
+                    amount: updatedSchedule[emiIndex].emi,
+                  });
+                }
+                await loadAndRenderAll();
+                showCustomerDetails(customerId);
+              } catch (error) {
+                showToast("error", "Update Failed", error.message);
+                toggleButtonLoading(button, false);
+              }
             }
-            await loadAndRenderAll();
-            showCustomerDetails(customerId);
-          } catch (error) {
-            showToast("error", "Update Failed", error.message);
-            toggleButtonLoading(button, false);
-          }
+          );
         } else if (button.classList.contains("delete-activity-btn")) {
           const activityId = button.dataset.id;
           showConfirmation(
@@ -903,7 +905,6 @@ document.addEventListener("DOMContentLoaded", () => {
         ) {
           auth.signOut();
         } else if (button.id === "theme-toggle-btn") {
-          // MODIFIED: Use the new global toggle function
           if (window.toggleDarkMode) {
             window.toggleDarkMode();
           }
@@ -924,6 +925,7 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-id").value = customer.id;
           getEl("customer-name").value = customer.name;
           getEl("customer-phone").value = customer.phone || "";
+          getEl("customer-email").value = customer.email || "";
           getEl("customer-father-name").value = customer.fatherName || "";
           getEl("customer-mother-name").value = customer.motherName || "";
           getEl("customer-address").value = customer.address || "";
@@ -1112,6 +1114,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const data = {
             name: getEl("customer-name").value,
             phone: getEl("customer-phone").value,
+            email: getEl("customer-email").value,
             fatherName: getEl("customer-father-name").value,
             motherName: getEl("customer-mother-name").value,
             address: getEl("customer-address").value,
@@ -1269,7 +1272,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.body.addEventListener("change", (e) => {
       if (e.target.id === "dark-mode-toggle") {
-        // MODIFIED: Use the new global toggle function
         if (window.toggleDarkMode) {
           window.toggleDarkMode();
         }
