@@ -880,6 +880,20 @@ fieldset legend {
   background-color: var(--bg-main);
   z-index: 1;
 }
+.emi-table td.no-pdf {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.share-receipt-btn {
+  background-color: #25d366 !important;
+  color: white !important;
+  padding: 0.4rem !important;
+  width: 30px;
+  height: 30px;
+  font-size: 1rem !important;
+  line-height: 1;
+}
 .emi-status {
   padding: 0.25rem 0.6rem;
   border-radius: 1rem;

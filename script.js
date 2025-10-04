@@ -626,19 +626,21 @@ document.addEventListener("DOMContentLoaded", () => {
       const isOverdue = new Date(emi.dueDate) < today && emi.status === "Due";
       const statusClass = isOverdue ? "overdue" : emi.status.toLowerCase();
       const statusText = isOverdue ? "OVERDUE" : emi.status.toUpperCase();
+      
+      let actionButtons = '';
+      if (customer.status === 'active' && emi.status === 'Due') {
+          actionButtons += `<button class="btn btn-success btn-sm emi-pay-btn" data-month="${emi.month}" data-id="${customer.id}">Paid</button>`;
+      }
+      if (customer.status === 'active' && emi.status === 'Paid') {
+          actionButtons += `<button class="btn btn-outline btn-sm emi-pay-btn" data-month="${emi.month}" data-id="${customer.id}">Unpaid</button>`;
+          actionButtons += `<button class="btn btn-success btn-sm share-receipt-btn" data-id="${customer.id}" title="Share on WhatsApp"><i class="fab fa-whatsapp"></i></button>`;
+      }
+
       tr.innerHTML = `<td>${emi.month}</td><td>${
         emi.dueDate
       }</td><td>${formatCurrency(
         emi.emi
-      )}</td><td><span class="emi-status status-${statusClass}">${statusText}</span></td><td class="no-pdf">${
-        customer.status === "active" && emi.status === "Due"
-          ? `<button class="btn btn-success btn-sm emi-pay-btn" data-month="${emi.month}" data-id="${customer.id}">Paid</button>`
-          : ""
-      }${
-        customer.status === "active" && emi.status === "Paid"
-          ? `<button class="btn btn-outline btn-sm emi-pay-btn" data-month="${emi.month}" data-id="${customer.id}">Unpaid</button>`
-          : ""
-      }</td>`;
+      )}</td><td><span class="emi-status status-${statusClass}">${statusText}</span></td><td class="no-pdf">${actionButtons}</td>`;
       emiTableBody.appendChild(tr);
     });
     getEl("customer-details-modal").classList.add("show");
@@ -807,6 +809,13 @@ document.addEventListener("DOMContentLoaded", () => {
               }
             }
           );
+        } else if (button.classList.contains("share-receipt-btn")) {
+            const customerId = button.dataset.id;
+            if (typeof generateAndSharePDF === "function") {
+                generateAndSharePDF(customerId);
+            } else {
+                showToast("error", "Error", "PDF generation script not loaded.");
+            }
         } else if (button.classList.contains("delete-activity-btn")) {
           const activityId = button.dataset.id;
           showConfirmation(
@@ -914,6 +923,7 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-form-modal-title").textContent = "Add New Customer";
           getEl("loan-date").value = new Date().toISOString().split("T")[0];
           getEl("loan-details-fields").style.display = "block";
+          getEl("loan-details-fields").querySelectorAll("input").forEach(input => input.disabled = false);
           getEl("customer-form-modal").classList.add("show");
         } else if (button.id === "edit-customer-info-btn") {
           const customer = [
@@ -932,6 +942,7 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-aadhar").value = customer.aadhar || "";
           getEl("customer-pan").value = customer.pan || "";
           getEl("loan-details-fields").style.display = "none";
+          getEl("loan-details-fields").querySelectorAll("input").forEach(input => input.disabled = true);
           getEl("customer-form-modal-title").textContent = "Edit Customer Info";
           getEl("customer-details-modal").classList.remove("show");
           getEl("customer-form-modal").classList.add("show");
@@ -1111,7 +1122,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const saveBtn = getEl("customer-modal-save");
         toggleButtonLoading(saveBtn, true, id ? "Updating..." : "Saving...");
         try {
-          const data = {
+          const customerData = {
             name: getEl("customer-name").value,
             phone: getEl("customer-phone").value,
             email: getEl("customer-email").value,
@@ -1121,30 +1132,33 @@ document.addEventListener("DOMContentLoaded", () => {
             aadhar: getEl("customer-aadhar").value,
             pan: getEl("customer-pan").value,
           };
+
           if (id) {
-            await db.collection("customers").doc(id).update(data);
-            showToast("success", "Customer Updated", "Details saved.");
+            const customerRef = db.collection("customers").doc(id);
+            await customerRef.update(customerData);
+            showToast("success", "Customer Updated", "Details saved successfully.");
           } else {
-            const p = parseFloat(getEl("principal-amount").value),
-              r = parseFloat(getEl("interest-rate-modal").value),
-              n = parseInt(getEl("loan-tenure").value, 10),
-              d = getEl("loan-date").value;
-            if (isNaN(p) || isNaN(r) || isNaN(n) || !d)
+            const p = parseFloat(getEl("principal-amount").value);
+            const r = parseFloat(getEl("interest-rate-modal").value);
+            const n = parseInt(getEl("loan-tenure").value, 10);
+            const d = getEl("loan-date").value;
+            if (isNaN(p) || isNaN(r) || isNaN(n) || !d) {
               throw new Error("Please fill all loan fields correctly.");
-            data.loanDetails = {
+            }
+            customerData.loanDetails = {
               principal: p,
               annualRate: r,
               tenureMonths: n,
               emiAmount: calculateEMI(p, r, n),
               loanDate: d,
             };
-            data.emiSchedule = generateAmortizationSchedule(p, r, n, d);
-            data.owner = currentUser.uid;
-            data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-            data.status = "active";
-            await db.collection("customers").add(data);
+            customerData.emiSchedule = generateAmortizationSchedule(p, r, n, d);
+            customerData.owner = currentUser.uid;
+            customerData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            customerData.status = "active";
+            await db.collection("customers").add(customerData);
             await logActivity("NEW_LOAN", {
-              customerName: data.name,
+              customerName: customerData.name,
               amount: p,
             });
             showToast("success", "Customer Added", "New loan account created.");
@@ -1152,6 +1166,7 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-form-modal").classList.remove("show");
           await loadAndRenderAll();
         } catch (error) {
+          console.error("Save/Update failed:", error);
           showToast("error", "Save Failed", error.message);
         } finally {
           toggleButtonLoading(saveBtn, false);

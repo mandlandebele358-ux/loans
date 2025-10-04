@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Loan Statement</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        font-size: 10pt;
+        line-height: 1.5;
+        color: #333;
+      }
+      .receipt-container {
+        padding: 30pt;
+        width: 595pt;
+        box-sizing: border-box;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 20pt;
+        border-bottom: 2px solid #4a55a2;
+        padding-bottom: 10pt;
+      }
+      .header h1 {
+        font-size: 24pt;
+        color: #4a55a2;
+        margin: 0;
+      }
+      .header p {
+        font-size: 12pt;
+        color: #666;
+        margin: 5pt 0 0;
+      }
+      .details-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15pt;
+        margin-bottom: 20pt;
+      }
+      .details-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12pt;
+      }
+      .details-box h3 {
+        margin: 0 0 10pt;
+        font-size: 14pt;
+        color: #4a55a2;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 5pt;
+      }
+      .detail-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 4pt 0;
+        font-size: 10pt;
+      }
+      .detail-item strong {
+        font-weight: 600;
+        color: #1e293b;
+      }
+      .emi-schedule {
+        margin-top: 25pt;
+      }
+      .emi-schedule h2 {
+        font-size: 16pt;
+        color: #4a55a2;
+        text-align: center;
+        margin-bottom: 15pt;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border: 1px solid #e2e8f0;
+        padding: 8pt;
+        text-align: left;
+      }
+      th {
+        background-color: #f1f5f9;
+        font-weight: 600;
+        color: #4a55a2;
+      }
+      tr.paid {
+        background-color: #f0fdf4;
+        color: #38a169;
+      }
+      .status {
+        font-weight: bold;
+        padding: 3pt 6pt;
+        border-radius: 10pt;
+        font-size: 8pt;
+        text-transform: uppercase;
+      }
+      .status.paid {
+        background-color: #dcfce7;
+        color: #166534;
+      }
+      .status.due {
+        background-color: #fef9c3;
+        color: #854d0e;
+      }
+      .footer {
+        text-align: center;
+        margin-top: 30pt;
+        font-size: 9pt;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="receipt-container">
+      <header class="header">
+        <h1>Loan Statement</h1>
+        <p>Your Trusted Lending Partner</p>
+      </header>
+
+      <main>
+        <div class="details-grid">
+          <div class="details-box">
+            <h3>Customer & Loan Details</h3>
+            <div class="detail-item">
+              <span>Customer Name:</span> <strong>{{customerName}}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Loan Date:</span> <strong>{{loanDate}}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Principal Amount:</span> <strong>{{principal}}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Interest Rate:</span> <strong>{{interestRate}}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Tenure:</span> <strong>{{tenure}}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Monthly EMI:</span> <strong>{{emiAmount}}</strong>
+            </div>
+          </div>
+          <div class="details-box">
+            <h3>Account Summary</h3>
+            <div class="detail-item">
+              <span>Total Amount Paid:</span> <strong>{{totalPaid}}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Outstanding Balance:</span> <strong>{{outstanding}}</strong>
+            </div>
+            <div class="detail-item">
+              <span>Total Interest Payable:</span>
+              <strong>{{totalInterest}}</strong>
+            </div>
+          </div>
+        </div>
+
+        <section class="emi-schedule">
+          <h2>EMI Repayment Schedule</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Due Date</th>
+                <th>EMI</th>
+                <th>Principal</th>
+                <th>Interest</th>
+                <th>Balance</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{emiTableRows}}
+            </tbody>
+          </table>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p>
+          This is a computer-generated statement and does not require a
+          signature.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>
