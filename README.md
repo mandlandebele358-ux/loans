@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-Proprietary-E91E63?style=for-the-badge)](./LICENSE)
 [![Technology](https://img.shields.io/badge/Made_with-JavaScript_&_Firebase-F7DF1E?style=for-the-badge&logo=javascript)](https://firebase.google.com/)
 
-**Loan Manager** is a comprehensive, single-page web application designed for the meticulous management of Equated Monthly Installment (EMI) based loans. Built with Vanilla JavaScript and powered by Google's Firebase suite, this application provides a secure, robust, and user-friendly platform for individual moneylenders and small-scale financial entities to manage their lending operations with precision and ease.
+**Loan Manager** is a comprehensive, single-page web application designed for the meticulous management of Equated Monthly Installment (EMI) based loans. Built with Vanilla JavaScript and powered by Google's Firebase suite, this application provides a secure, and user-friendly platform for individual moneylenders and small-scale financial entities to manage their lending operations with precision and ease.
 
 The application moves beyond simple record-keeping, offering an interactive dashboard, detailed customer and loan analytics, full data portability, and a secure, authenticated environment for data integrity.
 
