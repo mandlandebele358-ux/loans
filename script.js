@@ -715,11 +715,12 @@ document.addEventListener("DOMContentLoaded", () => {
             customer.name;
           modal.querySelector(".payment-customer-avatar").textContent =
             customer.name.charAt(0).toUpperCase();
-          modal.querySelector(
-            ".payment-installment-info"
-          ).textContent = `Installment #${installmentNum}`;
-          modal.querySelector(".payment-due-value").textContent =
-            formatCurrency(installment.amountDue);
+          getEl(
+            "payment-installment-display"
+          ).textContent = `#${installmentNum}`;
+          getEl("payment-due-display").textContent = formatCurrency(
+            installment.amountDue
+          );
 
           const paymentAmountInput = getEl("payment-amount");
           paymentAmountInput.value =

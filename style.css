@@ -1465,3 +1465,109 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
     margin-top: -10px;
   }
 }
+
+/* New, Better Payment Modal UI Styles */
+.payment-customer-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.payment-customer-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.payment-customer-name {
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: var(--text-dark);
+}
+
+.payment-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.payment-detail-item {
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  text-align: center;
+}
+
+.payment-detail-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-gray);
+  margin-bottom: 0.25rem;
+}
+
+.payment-detail-value {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.payment-detail-value.large {
+  font-size: 1.5rem;
+  color: var(--primary);
+}
+
+.input-group-payment {
+  position: relative;
+}
+
+.input-group-payment .input-group-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  color: var(--text-gray);
+}
+
+.input-group-payment .form-control-lg {
+  padding: 1rem 1rem 1rem 2.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.payment-quick-actions {
+  text-align: right;
+  margin-top: -1rem;
+  margin-bottom: 1.5rem;
+}
+
+.payment-pending-display {
+  text-align: center;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: var(--danger-t-10);
+  border-radius: var(--border-radius);
+  display: none; /* Hidden by default */
+}
+
+.payment-pending-label {
+  color: var(--text-gray);
+}
+
+.payment-pending-value {
+  color: var(--danger);
+}

@@ -382,7 +382,7 @@
     </div>
 
     <div class="modal" id="payment-modal">
-        <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-content" style="max-width: 480px;">
             <div class="modal-header">
                 <h3 class="modal-title">Record Payment</h3>
                 <button class="modal-close">&times;</button>
@@ -391,35 +391,37 @@
                 <form id="payment-form">
                     <input type="hidden" id="payment-customer-id" />
                     <input type="hidden" id="payment-installment-number" />
-                    
-                    <div class="payment-summary-card">
-                        <div class="payment-customer-info">
-                            <span class="payment-customer-avatar">A</span>
-                            <div class="payment-customer-details">
-                                <span class="payment-customer-name">Customer Name</span>
-                                <span class="payment-installment-info">Installment #1</span>
-                            </div>
+
+                    <div class="payment-customer-header">
+                        <span class="payment-customer-avatar">A</span>
+                        <span class="payment-customer-name">Customer Name</span>
+                    </div>
+
+                    <div class="payment-details-grid">
+                        <div class="payment-detail-item">
+                            <span class="payment-detail-label">Installment No.</span>
+                            <span class="payment-detail-value" id="payment-installment-display">#1</span>
                         </div>
-                        <div class="payment-due-info">
-                            <span class="payment-due-label">Amount Due</span>
-                            <span class="payment-due-value">₹0.00</span>
+                        <div class="payment-detail-item">
+                            <span class="payment-detail-label">Amount Due</span>
+                            <span class="payment-detail-value large" id="payment-due-display">₹0</span>
                         </div>
                     </div>
 
-                    <div class="form-group" style="margin-top: 2rem;">
-                        <label for="payment-amount">Enter Amount Paid</label>
+                    <div class="form-group" style="margin-top: 1.5rem;">
+                        <label for="payment-amount">Enter Amount to Pay</label>
                         <div class="input-group-payment">
                             <span class="input-group-icon">₹</span>
                             <input type="number" id="payment-amount" class="form-control form-control-lg" required step="0.01" min="0" placeholder="0.00"/>
                         </div>
                     </div>
-                    
+
                     <div class="payment-quick-actions">
                         <button type="button" class="btn btn-outline btn-sm" id="pay-full-btn">Pay Full Amount</button>
                     </div>
 
                     <div class="payment-pending-display">
-                        <span class="payment-pending-label">Pending for this installment:</span>
+                        <span class="payment-pending-label">Remaining Balance:</span>
                         <strong class="payment-pending-value">₹0.00</strong>
                     </div>
                 </form>
