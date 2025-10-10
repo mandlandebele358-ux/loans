@@ -493,6 +493,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!customer) return;
     const modalBody = getEl("details-modal-body");
     getEl("details-modal-title").textContent = `Loan Details: ${customer.name}`;
+    getEl("generate-pdf-btn").dataset.id = customerId;
+    getEl("send-whatsapp-btn").dataset.id = customerId;
+
 
     if (!customer.loanDetails || !customer.paymentSchedule) {
       modalBody.innerHTML = `<p style="padding: 2rem; text-align: center;">This customer has incomplete or outdated loan data.</p>`;
@@ -607,17 +610,21 @@ document.addEventListener("DOMContentLoaded", () => {
     getEl("customer-details-modal").classList.add("show");
   };
 
-  auth.onAuthStateChanged((user) => {
+  auth.onAuthStateChanged(async (user) => {
     currentUser = user;
     if (user) {
-      getEl("auth-container").classList.add("hidden");
-      getEl("admin-dashboard").classList.remove("hidden");
-      loadAndRenderAll();
+        getEl("auth-container").classList.add("hidden");
+        getEl("admin-dashboard").classList.remove("hidden");
+        await loadAndRenderAll();
+        if (window.applyTheme) {
+            const savedTheme = localStorage.getItem("theme") || "default";
+            window.applyTheme(savedTheme);
+        }
     } else {
-      window.allCustomers = { active: [], settled: [] };
-      recentActivities = [];
-      getEl("auth-container").classList.remove("hidden");
-      getEl("admin-dashboard").classList.add("hidden");
+        window.allCustomers = { active: [], settled: [] };
+        recentActivities = [];
+        getEl("auth-container").classList.remove("hidden");
+        getEl("admin-dashboard").classList.add("hidden");
     }
   });
 
@@ -696,63 +703,62 @@ document.addEventListener("DOMContentLoaded", () => {
         target.closest(".modal").classList.remove("show");
       }
       if (button) {
-        if (button.classList.contains("record-payment-btn")) {
-          const customerId = button.dataset.id;
-          const installmentNum = parseInt(button.dataset.installment, 10);
-          const customer = window.allCustomers.active.find(
-            (c) => c.id === customerId
-          );
-          if (!customer) return;
-          const installment = customer.paymentSchedule.find(
-            (p) => p.installment === installmentNum
-          );
-
-          getEl("payment-customer-id").value = customerId;
-          getEl("payment-installment-number").value = installmentNum;
-
-          const modal = getEl("payment-modal");
-          modal.querySelector(".payment-customer-name").textContent =
-            customer.name;
-          modal.querySelector(".payment-customer-avatar").textContent =
-            customer.name.charAt(0).toUpperCase();
-          getEl(
-            "payment-installment-display"
-          ).textContent = `#${installmentNum}`;
-          getEl("payment-due-display").textContent = formatCurrency(
-            installment.amountDue
-          );
-
-          const paymentAmountInput = getEl("payment-amount");
-          paymentAmountInput.value =
-            installment.amountPaid > 0 ? installment.amountPaid : "";
-          paymentAmountInput.setAttribute("max", installment.amountDue);
-
-          const updatePendingDisplay = () => {
-            const amountPaid = parseFloat(paymentAmountInput.value) || 0;
-            const pendingAmount = installment.amountDue - amountPaid;
-            const pendingContainer = modal.querySelector(
-              ".payment-pending-display"
-            );
-            if (pendingAmount > 0.001) {
-              modal.querySelector(".payment-pending-value").textContent =
-                formatCurrency(pendingAmount);
-              pendingContainer.style.display = "block";
-            } else {
-              pendingContainer.style.display = "none";
+        if (button.id === "generate-pdf-btn") {
+            const customerId = button.dataset.id;
+            if (customerId) generateAndDownloadPDF(customerId);
+        } else if (button.id === "send-whatsapp-btn") {
+            const customerId = button.dataset.id;
+            const customer = [...window.allCustomers.active, ...window.allCustomers.settled].find(c => c.id === customerId);
+            if (customer) {
+                openWhatsApp(customer);
             }
-          };
+        } else if (button.classList.contains("record-payment-btn")) {
+            const customerId = button.dataset.id;
+            const installmentNum = parseInt(button.dataset.installment, 10);
+            const customer = window.allCustomers.active.find(
+                (c) => c.id === customerId
+            );
+            if (!customer) return;
+            const installment = customer.paymentSchedule.find(
+                (p) => p.installment === installmentNum
+            );
 
-          paymentAmountInput.oninput = updatePendingDisplay;
+            getEl("payment-customer-id").value = customerId;
+            getEl("payment-installment-number").value = installmentNum;
+            
+            const modal = getEl("payment-modal");
+            modal.querySelector(".payment-customer-name").textContent = customer.name;
+            modal.querySelector(".payment-customer-avatar").textContent = customer.name.charAt(0).toUpperCase();
+            getEl("payment-installment-display").textContent = `#${installmentNum}`;
+            getEl("payment-due-display").textContent = formatCurrency(installment.amountDue);
+            
+            const paymentAmountInput = getEl("payment-amount");
+            paymentAmountInput.value = installment.amountPaid > 0 ? installment.amountPaid : '';
+            paymentAmountInput.setAttribute("max", installment.amountDue);
+            
+            const updatePendingDisplay = () => {
+                const amountPaid = parseFloat(paymentAmountInput.value) || 0;
+                const pendingAmount = installment.amountDue - amountPaid;
+                const pendingContainer = modal.querySelector('.payment-pending-display');
+                if (pendingAmount > 0.001) {
+                    modal.querySelector('.payment-pending-value').textContent = formatCurrency(pendingAmount);
+                    pendingContainer.style.display = 'block';
+                } else {
+                    pendingContainer.style.display = 'none';
+                }
+            };
 
-          const payFullBtn = getEl("pay-full-btn");
-          payFullBtn.onclick = () => {
-            paymentAmountInput.value = installment.amountDue;
+            paymentAmountInput.oninput = updatePendingDisplay;
+            
+            const payFullBtn = getEl("pay-full-btn");
+            payFullBtn.onclick = () => {
+                paymentAmountInput.value = installment.amountDue;
+                updatePendingDisplay();
+                paymentAmountInput.focus();
+            };
+            
             updatePendingDisplay();
-            paymentAmountInput.focus();
-          };
-
-          updatePendingDisplay();
-          modal.classList.add("show");
+            modal.classList.add("show");
         } else if (button.classList.contains("delete-activity-btn")) {
           const activityId = button.dataset.id;
           showConfirmation(
@@ -1341,7 +1347,6 @@ document.addEventListener("DOMContentLoaded", () => {
         );
         const listEl = getEl("customers-list");
         if (listEl) {
-          // Re-use the render function
           const renderList = (element, data, type) => {
             if (!element) return;
             element.innerHTML = "";

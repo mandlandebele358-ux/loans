@@ -13,17 +13,16 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
-
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
   </head>
   <body>
     <div id="auth-container" class="auth-container">
@@ -179,6 +178,15 @@
           <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body" id="details-modal-body"></div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="generate-pdf-btn">
+            <i class="fas fa-file-pdf"></i> Download Statement
+          </button>
+          <button class="btn btn-whatsapp" id="send-whatsapp-btn">
+            <i class="fab fa-whatsapp"></i> Send on WhatsApp
+          </button>
+          <button class="btn btn-outline" data-close-modal>Close</button>
+        </div>
       </div>
     </div>
 
@@ -206,12 +214,6 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label for="customer-phone">WhatsApp Number</label>
-                  <input type="tel" id="customer-phone" class="form-control" />
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
                   <label for="customer-father-name">Father's Name</label
                   ><input
                     type="text"
@@ -219,11 +221,17 @@
                     class="form-control"
                   />
                 </div>
+              </div>
+              <div class="form-row">
                 <div class="form-group">
-                  <label for="customer-mother-name">Mother's Name</label
-                  ><input
-                    type="text"
-                    id="customer-mother-name"
+                  <label for="customer-mobile">Mobile Number</label>
+                  <input type="tel" id="customer-mobile" class="form-control" />
+                </div>
+                <div class="form-group">
+                  <label for="customer-whatsapp">WhatsApp Number</label>
+                  <input
+                    type="tel"
+                    id="customer-whatsapp"
                     class="form-control"
                   />
                 </div>
@@ -382,58 +390,87 @@
     </div>
 
     <div class="modal" id="payment-modal">
-        <div class="modal-content" style="max-width: 480px;">
-            <div class="modal-header">
-                <h3 class="modal-title">Record Payment</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 1.5rem 2rem;">
-                <form id="payment-form">
-                    <input type="hidden" id="payment-customer-id" />
-                    <input type="hidden" id="payment-installment-number" />
-
-                    <div class="payment-customer-header">
-                        <span class="payment-customer-avatar">A</span>
-                        <span class="payment-customer-name">Customer Name</span>
-                    </div>
-
-                    <div class="payment-details-grid">
-                        <div class="payment-detail-item">
-                            <span class="payment-detail-label">Installment No.</span>
-                            <span class="payment-detail-value" id="payment-installment-display">#1</span>
-                        </div>
-                        <div class="payment-detail-item">
-                            <span class="payment-detail-label">Amount Due</span>
-                            <span class="payment-detail-value large" id="payment-due-display">₹0</span>
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="margin-top: 1.5rem;">
-                        <label for="payment-amount">Enter Amount to Pay</label>
-                        <div class="input-group-payment">
-                            <span class="input-group-icon">₹</span>
-                            <input type="number" id="payment-amount" class="form-control form-control-lg" required step="0.01" min="0" placeholder="0.00"/>
-                        </div>
-                    </div>
-
-                    <div class="payment-quick-actions">
-                        <button type="button" class="btn btn-outline btn-sm" id="pay-full-btn">Pay Full Amount</button>
-                    </div>
-
-                    <div class="payment-pending-display">
-                        <span class="payment-pending-label">Remaining Balance:</span>
-                        <strong class="payment-pending-value">₹0.00</strong>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline" data-close-modal>Cancel</button>
-                <button type="submit" form="payment-form" id="payment-save-btn" class="btn btn-primary">
-                    <span class="loading-spinner hidden"></span>
-                    <span>Save Payment</span>
-                </button>
-            </div>
+      <div class="modal-content" style="max-width: 480px">
+        <div class="modal-header">
+          <h3 class="modal-title">Record Payment</h3>
+          <button class="modal-close">&times;</button>
         </div>
+        <div class="modal-body" style="padding: 1.5rem 2rem">
+          <form id="payment-form">
+            <input type="hidden" id="payment-customer-id" />
+            <input type="hidden" id="payment-installment-number" />
+
+            <div class="payment-customer-header">
+              <span class="payment-customer-avatar">A</span>
+              <span class="payment-customer-name">Customer Name</span>
+            </div>
+
+            <div class="payment-details-grid">
+              <div class="payment-detail-item">
+                <span class="payment-detail-label">Installment No.</span>
+                <span
+                  class="payment-detail-value"
+                  id="payment-installment-display"
+                  >#1</span
+                >
+              </div>
+              <div class="payment-detail-item">
+                <span class="payment-detail-label">Amount Due</span>
+                <span
+                  class="payment-detail-value large"
+                  id="payment-due-display"
+                  >₹0</span
+                >
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 1.5rem">
+              <label for="payment-amount">Enter Amount to Pay</label>
+              <div class="input-group-payment">
+                <span class="input-group-icon">₹</span>
+                <input
+                  type="number"
+                  id="payment-amount"
+                  class="form-control form-control-lg"
+                  required
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div class="payment-quick-actions">
+              <button
+                type="button"
+                class="btn btn-outline btn-sm"
+                id="pay-full-btn"
+              >
+                Pay Full Amount
+              </button>
+            </div>
+
+            <div class="payment-pending-display">
+              <span class="payment-pending-label">Remaining Balance:</span>
+              <strong class="payment-pending-value">₹0.00</strong>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="payment-form"
+            id="payment-save-btn"
+            class="btn btn-primary"
+          >
+            <span class="loading-spinner hidden"></span>
+            <span>Save Payment</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="modal" id="refinance-modal">
@@ -584,8 +621,11 @@
 
     <script src="excel.js"></script>
     <script src="graph.js"></script>
-    <script src="theme-switcher.js"></script>
+    
+    <script src="pdf-generator.js"></script>
+
     <script src="pdf-generator.js"></script>
     <script src="script.js"></script>
+    <script src="theme-switcher.js"></script>
   </body>
 </html>
