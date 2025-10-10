@@ -28,7 +28,6 @@ const getThemeColors = () => {
     .getPropertyValue("--primary-t-08")
     .trim();
 
-  // If --primary-t-08 is not a valid color or doesn't exist, create one.
   if (!primaryTransColor || primaryTransColor.length === 0) {
     if (primaryColor.startsWith("#")) {
       primaryTransColor = hexToRgba(primaryColor, 0.2);
@@ -48,44 +47,41 @@ const getThemeColors = () => {
     background: computedStyles.getPropertyValue("--bg-card").trim(),
   };
 };
+
 function renderDashboardCharts(activeLoans, settledLoans, profitData) {
   renderPortfolioChart(activeLoans, settledLoans);
   renderProfitChart(profitData);
 }
+
 function renderPortfolioChart(activeLoans, settledLoans) {
   const ctx = document.getElementById("portfolioChart")?.getContext("2d");
   if (!ctx) return;
-  let totalPrincipalRepaid = 0,
-    totalInterestPaid = 0,
-    totalOutstanding = 0;
-  [...activeLoans, ...settledLoans]
-    .filter((c) => c.loanDetails)
-    .forEach((loan) => {
-      const paidEmis = loan.emiSchedule.filter((e) => e.status === "Paid");
-      totalInterestPaid += paidEmis.reduce(
-        (sum, emi) => sum + emi.interestComponent,
-        0
-      );
-      totalPrincipalRepaid += paidEmis.reduce(
-        (sum, emi) => sum + emi.principalComponent,
-        0
-      );
-    });
-  activeLoans
-    .filter((c) => c.loanDetails)
-    .forEach((loan) => {
-      const paidEmis = loan.emiSchedule.filter((e) => e.status === "Paid");
-      totalOutstanding +=
-        paidEmis.length > 0
-          ? paidEmis[paidEmis.length - 1].remainingBalance
-          : loan.loanDetails.principal;
-    });
+
+  let totalPaidPrincipal = 0;
+  let totalInterestEarned = 0;
+  let totalOutstanding = 0;
+
+  [...activeLoans, ...settledLoans].filter(c => c.loanDetails && c.paymentSchedule).forEach(loan => {
+      const totalPaid = loan.paymentSchedule.reduce((sum, p) => sum + p.amountPaid, 0);
+      const interestPaidOnThisLoan = Math.max(0, totalPaid - loan.loanDetails.principal);
+      const principalPaidOnThisLoan = totalPaid - interestPaidOnThisLoan;
+
+      totalInterestEarned += interestPaidOnThisLoan;
+      totalPaidPrincipal += principalPaidOnThisLoan;
+  });
+
+  activeLoans.filter(c => c.loanDetails && c.paymentSchedule).forEach(loan => {
+      const totalRepayable = loan.loanDetails.principal * (1 + loan.loanDetails.interestRate / 100);
+      const totalPaid = loan.paymentSchedule.reduce((sum, p) => sum + p.amountPaid, 0);
+      totalOutstanding += (totalRepayable - totalPaid);
+  });
+  
   const theme = getThemeColors();
   const data = {
-    labels: ["Outstanding", "Repaid", "Interest"],
+    labels: ["Outstanding", "Principal Repaid", "Interest Earned"],
     datasets: [
       {
-        data: [totalOutstanding, totalPrincipalRepaid, totalInterestPaid],
+        data: [totalOutstanding, totalPaidPrincipal, totalInterestEarned],
         backgroundColor: [theme.danger, theme.primary, theme.success],
         borderColor: theme.background,
         borderWidth: 4,
@@ -94,6 +90,7 @@ function renderPortfolioChart(activeLoans, settledLoans) {
       },
     ],
   };
+
   if (portfolioChartInstance) portfolioChartInstance.destroy();
   portfolioChartInstance = new Chart(ctx, {
     type: "doughnut",
@@ -135,6 +132,7 @@ function renderPortfolioChart(activeLoans, settledLoans) {
     },
   });
 }
+
 function renderProfitChart(profitData) {
   const ctx = document.getElementById("profitChart")?.getContext("2d");
   if (!ctx) return;

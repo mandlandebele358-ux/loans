@@ -2,7 +2,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBG87TpDWEPzjuJ4rQVQT92ITXdo4FTqbQ",
   authDomain: "loanmanager-caa23.firebaseapp.com",
   projectId: "loanmanager-caa23",
-  storageBucket: "loanmanager-caa23.firebasestorage.app",
+  storageBucket: "loanmanager-caa23.appspot.com",
   messagingSenderId: "256544208599",
   appId: "1:256544208599:web:18de9e46a8f77f620aa292",
   measurementId: "G-QW0EKBYEBS",
@@ -10,6 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
+const storage = firebase.storage();
 
 window.allCustomers = { active: [], settled: [] };
 window.processProfitData = (allCusts) => {
@@ -17,10 +18,25 @@ window.processProfitData = (allCusts) => {
   const today = new Date();
   today.setHours(23, 59, 59, 999);
   [...allCusts.active, ...allCusts.settled].forEach((customer) => {
-    if (customer.loanDetails && customer.emiSchedule) {
-      customer.emiSchedule.forEach((emi) => {
-        if (emi.status === "Paid" && new Date(emi.dueDate) <= today) {
-          data.push({ date: emi.dueDate, profit: emi.interestComponent });
+    if (customer.loanDetails && customer.paymentSchedule) {
+      const totalInterest =
+        customer.loanDetails.principal *
+        (customer.loanDetails.interestRate / 100);
+      const totalRepayable = customer.loanDetails.principal + totalInterest;
+      if (totalRepayable === 0) return;
+
+      const interestRatio = totalInterest / totalRepayable;
+
+      customer.paymentSchedule.forEach((installment) => {
+        if (
+          installment.amountPaid > 0 &&
+          new Date(installment.dueDate) <= today
+        ) {
+          const profitFromThisPayment = installment.amountPaid * interestRatio;
+          data.push({
+            date: installment.dueDate,
+            profit: profitFromThisPayment,
+          });
         }
       });
     }
@@ -52,9 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const toggleButtonLoading = (btn, isLoading, text = "Loading...") => {
     if (!btn) return;
     const spinner = btn.querySelector(".loading-spinner");
-    const btnText = btn.querySelector(
-      "span:not(.loading-spinner), .btn-text-desktop"
-    );
+    const btnText = btn.querySelector("span:not(.loading-spinner)");
     if (btnText && !btnText.dataset.originalText) {
       btnText.dataset.originalText = btnText.textContent;
     }
@@ -65,47 +79,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
   const formatCurrency = (amount) =>
-    `₹${Number(amount || 0).toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  const calculateEMI = (p, r, n) => {
-    if (p <= 0 || r < 0 || n <= 0) return 0;
-    const monthlyRate = r / 12 / 100;
-    if (monthlyRate === 0) return +(p / n).toFixed(2);
-    const emi =
-      (p * monthlyRate * Math.pow(1 + monthlyRate, n)) /
-      (Math.pow(1 + monthlyRate, n) - 1);
-    return +emi.toFixed(2);
-  };
-  const generateAmortizationSchedule = (p, r, n, startDate) => {
-    const emi = calculateEMI(p, r, n);
+    `₹${Math.round(Number(amount || 0)).toLocaleString("en-IN")}`;
+
+  const generateSimpleInterestSchedule = (p, r, n, startDate, frequency) => {
+    const totalInterest = p * (r / 100);
+    const totalRepayable = p + totalInterest;
+    const installmentAmount = totalRepayable / n;
     const schedule = [];
-    let balance = p;
-    const monthlyRate = r / 12 / 100;
     let currentDate = new Date(startDate);
+
     for (let i = 1; i <= n; i++) {
-      const interest = +(balance * monthlyRate).toFixed(2);
-      let principal = +(emi - interest).toFixed(2);
-      if (i === n || balance - principal < 0.01)
-        principal = +balance.toFixed(2);
-      balance = +(balance - principal).toFixed(2);
-      const dueDate = new Date(currentDate);
-      dueDate.setMonth(dueDate.getMonth() + 1);
-      if (dueDate.getDate() < currentDate.getDate()) dueDate.setDate(0);
-      currentDate = new Date(dueDate);
+      let dueDate;
+      if (i === 1) {
+        dueDate = new Date(currentDate);
+      } else {
+        if (frequency === "daily") {
+          currentDate.setDate(currentDate.getDate() + 1);
+        } else if (frequency === "weekly") {
+          currentDate.setDate(currentDate.getDate() + 7);
+        } else if (frequency === "monthly") {
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+        dueDate = new Date(currentDate);
+      }
+
       schedule.push({
-        month: i,
+        installment: i,
         dueDate: dueDate.toISOString().split("T")[0],
-        emi: i === n ? +(principal + interest).toFixed(2) : emi,
-        principalComponent: principal,
-        interestComponent: interest,
-        remainingBalance: balance < 0.01 ? 0 : balance,
+        amountDue: +installmentAmount.toFixed(2),
+        amountPaid: 0,
+        pendingAmount: +installmentAmount.toFixed(2),
         status: "Due",
       });
     }
     return schedule;
   };
+
   const showConfirmation = (title, message, onConfirm) => {
     getEl("confirmation-title").textContent = title;
     getEl("confirmation-message").textContent = message;
@@ -140,37 +149,38 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const calculateKeyStats = (activeLoans, settledLoans) => {
-    const validActive = activeLoans.filter((c) => c.loanDetails);
-    const validSettled = settledLoans.filter((c) => c.loanDetails);
     let totalPrincipal = 0,
       totalOutstanding = 0,
       totalInterest = 0;
-    validActive.forEach((c) => {
-      totalPrincipal += c.loanDetails.principal;
-      const paid = c.emiSchedule.filter((e) => e.status === "Paid");
-      totalOutstanding +=
-        paid.length > 0
-          ? paid[paid.length - 1].remainingBalance
-          : c.loanDetails.principal;
-      totalInterest += paid.reduce((s, e) => s + (e.interestComponent || 0), 0);
-    });
-    settledLoans.forEach((c) => {
-      if (c.loanDetails) {
+
+    [...activeLoans, ...settledLoans].forEach((c) => {
+      if (c.loanDetails && c.paymentSchedule) {
         totalPrincipal += c.loanDetails.principal;
-        totalInterest += c.emiSchedule.reduce(
-          (s, e) => s + (e.interestComponent || 0),
+        const totalRepayable =
+          c.loanDetails.principal * (1 + c.loanDetails.interestRate / 100);
+        const totalPaid = c.paymentSchedule.reduce(
+          (sum, p) => sum + p.amountPaid,
           0
         );
+
+        const interestPaid = Math.max(0, totalPaid - c.loanDetails.principal);
+        totalInterest += interestPaid;
+
+        if (c.status === "active") {
+          totalOutstanding += totalRepayable - totalPaid;
+        }
       }
     });
+
     return {
-      activeLoanCount: validActive.length,
-      settledLoanCount: validSettled.length,
+      activeLoanCount: activeLoans.filter((c) => c.loanDetails).length,
+      settledLoanCount: settledLoans.filter((c) => c.loanDetails).length,
       totalPrincipal,
       totalOutstanding,
       totalInterest,
     };
   };
+
   const updateSidebarStats = (stats) => {
     getEl("sidebar-active-loans").textContent = stats.activeLoanCount;
     getEl("sidebar-settled-loans").textContent = stats.settledLoanCount;
@@ -193,12 +203,14 @@ document.addEventListener("DOMContentLoaded", () => {
             .where("status", "==", "active")
             .orderBy("createdAt", "desc")
             .get(),
+
           db
             .collection("customers")
             .where("owner", "==", currentUser.uid)
             .where("status", "==", "settled")
             .orderBy("createdAt", "desc")
             .get(),
+
           db
             .collection("activities")
             .where("owner_uid", "==", currentUser.uid)
@@ -206,6 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
             .limit(10)
             .get(),
         ]);
+
       window.allCustomers.active = activeSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -218,19 +231,22 @@ document.addEventListener("DOMContentLoaded", () => {
         id: doc.id,
         ...doc.data(),
       }));
+
       const stats = calculateKeyStats(
         window.allCustomers.active,
         window.allCustomers.settled
       );
       populatePageContent(stats);
       updateSidebarStats(stats);
+
       const profitData = window.processProfitData(window.allCustomers);
-      if (typeof renderDashboardCharts === "function")
+      if (typeof renderDashboardCharts === "function") {
         renderDashboardCharts(
           window.allCustomers.active,
           window.allCustomers.settled,
           profitData
         );
+      }
     } catch (error) {
       console.error("Error loading data:", error);
       showToast("error", "Load Failed", "Could not fetch all required data.");
@@ -248,116 +264,15 @@ document.addEventListener("DOMContentLoaded", () => {
       stats.totalInterest
     )}</div></div><div class="stat-card"><div class="stat-title">Active Loans</div><div class="stat-value">${
       stats.activeLoanCount
-    }</div></div></div><div class="dashboard-grid"><div class="form-card chart-card"><h3 >Portfolio Overview</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div><div class="form-card chart-card grid-col-span-2"><h3 >Profit Over Time <div class="chart-controls" id="profit-chart-controls"><button class="btn btn-sm btn-outline active" data-frame="monthly">Month</button><button class="btn btn-sm btn-outline" data-frame="yearly">Year</button></div></h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div><div class="form-card"><h3><i class="fas fa-clock" style="color:var(--primary)"></i> Upcoming EMIs</h3><div id="upcoming-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Overdue EMIs</h3><div id="overdue-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-history"></i> Recent Activity <button class="btn btn-danger btn-sm" id="clear-all-activities-btn" title="Clear all activities"><i class="fas fa-trash"></i></button></h3><div id="recent-activity-container" class="activity-container"></div></div></div>`;
+    }</div></div></div><div class="dashboard-grid"><div class="form-card chart-card"><h3 >Portfolio Overview</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div><div class="form-card chart-card grid-col-span-2"><h3 >Profit Over Time <div class="chart-controls" id="profit-chart-controls"><button class="btn btn-sm btn-outline active" data-frame="monthly">Month</button><button class="btn btn-sm btn-outline" data-frame="yearly">Year</button></div></h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div><div class="form-card"><h3><i class="fas fa-clock" style="color:var(--primary)"></i> Upcoming Installments</h3><div id="upcoming-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Overdue Installments</h3><div id="overdue-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-history"></i> Recent Activity <button class="btn btn-danger btn-sm" id="clear-all-activities-btn" title="Clear all activities"><i class="fas fa-trash"></i></button></h3><div id="recent-activity-container" class="activity-container"></div></div></div>`;
     getEl(
       "calculator-section"
-    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> EMI Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row"><div class="form-group"><label for="calc-rate">Annual Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 12.5" step="0.01" required /></div><div class="form-group"><label for="calc-tenure">Tenure (Months)</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 24" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Monthly EMI</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
+    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row"><div class="form-group"><label for="calc-rate">Total Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="calc-tenure">Number of Installments</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 100" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
     getEl("settings-section").innerHTML = `<div class="settings-grid">
-        <div class="form-card setting-card">
-            <div class="setting-card-header">
-                <i class="fas fa-shield-alt"></i>
-                <h3>Security</h3>
-            </div>
-            <div class="setting-card-body">
-                <p class="setting-description">Manage your account security settings.</p>
-                <form id="change-password-form">
-                    <div class="form-group">
-                        <label for="current-password">Current Password</label>
-                        <input type="password" id="current-password" class="form-control" required/>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="new-password">New Password</label>
-                            <input type="password" id="new-password" class="form-control" required/>
-                        </div>
-                        <div class="form-group">
-                            <label for="confirm-password">Confirm New Password</label>
-                            <input type="password" id="confirm-password" class="form-control" required/>
-                        </div>
-                    </div>
-                    <button id="change-password-btn" type="submit" class="btn btn-primary">
-                        <span class="loading-spinner hidden"></span>
-                        <span>Update Password</span>
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <div class="form-card setting-card">
-            <div class="setting-card-header">
-                <i class="fas fa-palette"></i>
-                <h3>Appearance</h3>
-            </div>
-            <div class="setting-card-body">
-                <p class="setting-description">Customize the look and feel of the application.</p>
-                <div class="setting-item">
-                    <div class="setting-label">
-                        <i class="fas fa-moon"></i>
-                        <span>Dark Mode</span>
-                    </div>
-                    <div class="setting-control">
-                        <label class="switch">
-                            <input type="checkbox" id="dark-mode-toggle" />
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="form-card setting-card">
-            <div class="setting-card-header">
-                <i class="fas fa-database"></i>
-                <h3>Data Management</h3>
-            </div>
-            <div class="setting-card-body">
-                <p class="setting-description">Backup your data or restore from a file.</p>
-                <div class="setting-item">
-                    <div class="setting-label">
-                        <i class="fas fa-download"></i>
-                        <span>Export Data</span>
-                    </div>
-                    <div class="setting-control">
-                        <button class="btn btn-outline" id="export-backup-btn">Download Backup</button>
-                    </div>
-                </div>
-                <hr class="form-hr">
-                <div class="setting-item column">
-                     <div class="setting-label">
-                        <i class="fas fa-upload"></i>
-                        <span>Import Data</span>
-                    </div>
-                    <div class="import-controls">
-                        <input type="file" id="import-backup-input" accept=".json" class="hidden">
-                        <label for="import-backup-input" class="btn btn-outline">
-                            <i class="fas fa-file-import"></i> Choose File
-                        </label>
-                        <span id="file-name-display" class="file-name">No file chosen</span>
-                    </div>
-                     <p class="warning-text"><i class="fas fa-exclamation-triangle"></i> This will overwrite all current data.</p>
-                    <button class="btn btn-danger" id="import-backup-btn">Import & Overwrite</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="form-card setting-card">
-            <div class="setting-card-header">
-                <i class="fas fa-user-cog"></i>
-                <h3>Account</h3>
-            </div>
-            <div class="setting-card-body">
-                 <p class="setting-description">Log out from your current session.</p>
-                <div class="setting-item">
-                   <div class="setting-label">
-                        <i class="fas fa-sign-out-alt"></i>
-                        <span>Logout</span>
-                    </div>
-                    <div class="setting-control">
-                        <button class="btn btn-outline" id="logout-settings-btn">Logout Now</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-shield-alt"></i><h3>Security</h3></div><div class="setting-card-body"><p class="setting-description">Manage your account security settings.</p><form id="change-password-form"><div class="form-group"><label for="current-password">Current Password</label><input type="password" id="current-password" class="form-control" required/></div><div class="form-row"><div class="form-group"><label for="new-password">New Password</label><input type="password" id="new-password" class="form-control" required/></div><div class="form-group"><label for="confirm-password">Confirm New Password</label><input type="password" id="confirm-password" class="form-control" required/></div></div><button id="change-password-btn" type="submit" class="btn btn-primary"><span class="loading-spinner hidden"></span><span>Update Password</span></button></form></div></div>
+        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-palette"></i><h3>Appearance</h3></div><div class="setting-card-body"><p class="setting-description">Customize the look and feel of the application.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-moon"></i><span>Dark Mode</span></div><div class="setting-control"><label class="switch"><input type="checkbox" id="dark-mode-toggle" /><span class="slider round"></span></label></div></div></div></div>
+        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-database"></i><h3>Data Management</h3></div><div class="setting-card-body"><p class="setting-description">Backup your data or restore from a file.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-download"></i><span>Export Data</span></div><div class="setting-control"><button class="btn btn-outline" id="export-backup-btn">Download Backup</button></div></div><hr class="form-hr"><div class="setting-item column"><div class="setting-label"><i class="fas fa-upload"></i><span>Import Data</span></div><div class="import-controls"><input type="file" id="import-backup-input" accept=".json" class="hidden"><label for="import-backup-input" class="btn btn-outline"><i class="fas fa-file-import"></i> Choose File</label><span id="file-name-display" class="file-name">No file chosen</span></div><p class="warning-text"><i class="fas fa-exclamation-triangle"></i> This will overwrite all current data.</p><button class="btn btn-danger" id="import-backup-btn">Import & Overwrite</button></div></div></div>
+        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-user-cog"></i><h3>Account</h3></div><div class="setting-card-body"><p class="setting-description">Log out from your current session.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-sign-out-alt"></i><span>Logout</span></div><div class="setting-control"><button class="btn btn-outline" id="logout-settings-btn">Logout Now</button></div></div></div></div>
     </div>`;
 
     populateCustomerLists();
@@ -365,6 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderUpcomingAndOverdueEmis(window.allCustomers.active);
     renderActivityLog();
   };
+
   const renderActivityLog = () => {
     const container = getEl("recent-activity-container");
     if (!container) return;
@@ -387,9 +303,9 @@ document.addEventListener("DOMContentLoaded", () => {
             icon = "fa-user-plus text-success";
             text = `New loan for ${customerName} of ${amount}`;
             break;
-          case "EMI_PAID":
+          case "PAYMENT_RECEIVED":
             icon = "fa-check-circle text-success";
-            text = `EMI paid by ${customerName} of ${amount}`;
+            text = `Payment of ${amount} received from ${customerName}`;
             break;
           case "LOAN_SETTLED":
             icon = "fa-flag-checkered text-primary";
@@ -408,6 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .join("");
     container.innerHTML = `<ul class="activity-list">${activityHTML}</ul>`;
   };
+
   const populateCustomerLists = () => {
     const renderList = (element, data, type) => {
       if (!element) return;
@@ -419,21 +336,34 @@ document.addEventListener("DOMContentLoaded", () => {
       data.forEach((c) => {
         const li = document.createElement("li");
         li.className = "customer-item";
+        if (!c.loanDetails || !c.paymentSchedule) {
+          li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details"><span>Data format error</span></div></div><div class="customer-actions"><span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
+          element.appendChild(li);
+          return;
+        }
+
+        const totalPaid = c.paymentSchedule.reduce(
+          (sum, p) => sum + p.amountPaid,
+          0
+        );
+        const interestEarned = Math.max(0, totalPaid - c.loanDetails.principal);
+        const paidInstallments = c.paymentSchedule.filter(
+          (p) => p.status === "Paid"
+        ).length;
+
         const detailsHtml =
-          c.status === "settled"
+          type === "settled"
             ? `<span>Principal: ${formatCurrency(
                 c.loanDetails.principal
               )}</span><span class="list-profit-display success">Interest: ${formatCurrency(
-                c.emiSchedule.reduce(
-                  (s, e) => s + (e.interestComponent || 0),
-                  0
-                )
+                interestEarned
               )}</span>`
-            : `<span>EMI: ${formatCurrency(
-                c.loanDetails.emiAmount
-              )}</span><span>Paid: ${
-                c.emiSchedule.filter((e) => e.status === "Paid").length
-              }/${c.emiSchedule.length}</span>`;
+            : `<span>Due: ${formatCurrency(
+                c.paymentSchedule[0]?.amountDue
+              )}</span><span>Paid: ${paidInstallments}/${
+                c.paymentSchedule.length
+              }</span>`;
+
         const deleteButton =
           type === "settled"
             ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
@@ -455,6 +385,7 @@ document.addEventListener("DOMContentLoaded", () => {
       "settled"
     );
   };
+
   const renderUpcomingAndOverdueEmis = (activeLoans) => {
     const upcomingContainer = getEl("upcoming-emi-container");
     const overdueContainer = getEl("overdue-emi-container");
@@ -463,27 +394,32 @@ document.addEventListener("DOMContentLoaded", () => {
       overdue = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
     activeLoans
-      .filter((c) => c.loanDetails)
+      .filter((c) => c.loanDetails && c.paymentSchedule)
       .forEach((customer) => {
-        const nextDueEmi = customer.emiSchedule.find((e) => e.status === "Due");
-        if (nextDueEmi) {
-          const dueDate = new Date(nextDueEmi.dueDate);
+        const nextDueInstallment = customer.paymentSchedule.find(
+          (p) => p.status === "Due" || p.status === "Pending"
+        );
+        if (nextDueInstallment) {
+          const dueDate = new Date(nextDueInstallment.dueDate);
           const entry = {
             name: customer.name,
-            amount: nextDueEmi.emi,
-            date: nextDueEmi.dueDate,
+            amount: nextDueInstallment.pendingAmount,
+            date: nextDueInstallment.dueDate,
             customerId: customer.id,
           };
           if (dueDate < today) overdue.push(entry);
           else upcoming.push(entry);
         }
       });
+
     upcoming.sort((a, b) => new Date(a.date) - new Date(b.date));
     overdue.sort((a, b) => new Date(a.date) - new Date(b.date));
+
     const renderEmiList = (items) => {
       if (items.length === 0)
-        return `<ul class="activity-list"><li class="activity-item" style="cursor:default; justify-content:center;">No EMIs found.</li></ul>`;
+        return `<ul class="activity-list"><li class="activity-item" style="cursor:default; justify-content:center;">No items found.</li></ul>`;
       return `<ul class="activity-list">${items
         .slice(0, 5)
         .map(
@@ -503,19 +439,26 @@ document.addEventListener("DOMContentLoaded", () => {
     upcomingContainer.innerHTML = renderEmiList(upcoming);
     overdueContainer.innerHTML = renderEmiList(overdue);
   };
+
   const populateTodaysCollection = () => {
     const container = getEl("todays-collection-section");
     if (!container) return;
     const today = new Date().toISOString().split("T")[0];
     const dueToday = window.allCustomers.active
       .map((cust) => {
-        const dueEmi = cust.emiSchedule.find(
-          (emi) => emi.dueDate === today && emi.status === "Due"
+        const dueInstallment = cust.paymentSchedule?.find(
+          (inst) =>
+            inst.dueDate === today &&
+            (inst.status === "Due" || inst.status === "Pending")
         );
-        return dueEmi ? { ...cust, dueEmi } : null;
+        return dueInstallment ? { ...cust, dueInstallment } : null;
       })
       .filter(Boolean);
-    const totalDue = dueToday.reduce((sum, item) => sum + item.dueEmi.emi, 0);
+
+    const totalDue = dueToday.reduce(
+      (sum, item) => sum + item.dueInstallment.pendingAmount,
+      0
+    );
     let listHtml = "";
     if (dueToday.length > 0) {
       listHtml = dueToday
@@ -525,10 +468,10 @@ document.addEventListener("DOMContentLoaded", () => {
               item.id
             }"><div class="activity-info"><span class="activity-name">${
               item.name
-            }</span><span class="activity-details">EMI #${
-              item.dueEmi.month
+            }</span><span class="activity-details">Installment #${
+              item.dueInstallment.installment
             }</span></div><div class="activity-value"><span class="activity-amount">${formatCurrency(
-              item.dueEmi.emi
+              item.dueInstallment.pendingAmount
             )}</span></div></li>`
         )
         .join("");
@@ -541,6 +484,7 @@ document.addEventListener("DOMContentLoaded", () => {
       totalDue
     )}</div></div></div><ul class="activity-list">${listHtml}</ul></div>`;
   };
+
   const showCustomerDetails = (customerId) => {
     const customer = [
       ...window.allCustomers.active,
@@ -549,27 +493,24 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!customer) return;
     const modalBody = getEl("details-modal-body");
     getEl("details-modal-title").textContent = `Loan Details: ${customer.name}`;
-    if (!customer.loanDetails || !customer.emiSchedule) {
-      modalBody.innerHTML = `<p style="padding: 2rem; text-align: center;">This customer uses an outdated data format.</p>`;
+
+    if (!customer.loanDetails || !customer.paymentSchedule) {
+      modalBody.innerHTML = `<p style="padding: 2rem; text-align: center;">This customer has incomplete or outdated loan data.</p>`;
       getEl("customer-details-modal").classList.add("show");
       return;
     }
-    const { emiSchedule: schedule, loanDetails: details } = customer;
-    const paidEmis = schedule.filter((e) => e.status === "Paid");
-    const totalPaid = paidEmis.reduce((sum, emi) => sum + emi.emi, 0);
-    const remainingToCollect = schedule
-      .filter((e) => e.status !== "Paid")
-      .reduce((sum, emi) => sum + emi.emi, 0);
-    const progress = (paidEmis.length / schedule.length) * 100;
-    const outstanding =
-      paidEmis.length > 0
-        ? paidEmis[paidEmis.length - 1].remainingBalance
-        : details.principal;
-    const nextDueEmi = schedule.find((e) => e.status === "Due");
-    const totalInterestPaid = paidEmis.reduce(
-      (sum, emi) => sum + emi.interestComponent,
-      0
+
+    const { paymentSchedule: schedule, loanDetails: details } = customer;
+    const totalPaid = schedule.reduce((sum, p) => sum + p.amountPaid, 0);
+    const totalRepayable = details.principal * (1 + details.interestRate / 100);
+    const remainingToCollect = totalRepayable - totalPaid;
+    const paidInstallments = schedule.filter((p) => p.status === "Paid").length;
+    const progress = (paidInstallments / schedule.length) * 100;
+    const totalInterestPaid = Math.max(0, totalPaid - details.principal);
+    const nextDue = schedule.find(
+      (p) => p.status === "Due" || p.status === "Pending"
     );
+
     const settleButton =
       customer.status === "active"
         ? `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`
@@ -580,23 +521,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }" ${!hasHistory ? "disabled" : ""}><i class="fas fa-history"></i> ${
       hasHistory ? "View History" : "No History"
     }</button>`;
+
+    const createKycViewButton = (url, label = "View File") =>
+      url
+        ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline">${label}</a>`
+        : '<span class="value">N/A</span>';
+    const kycDocs = customer.kycDocs || {};
+    const aadharButton = createKycViewButton(kycDocs.aadharUrl);
+    const panButton = createKycViewButton(kycDocs.panUrl);
+    const picButton = createKycViewButton(kycDocs.picUrl, "View Photo");
+    const bankButton = createKycViewButton(kycDocs.bankDetailsUrl);
+
     modalBody.innerHTML = `<div class="details-view-grid"><div class="customer-profile-panel"><div class="profile-header"><div class="profile-avatar">${customer.name
       .charAt(0)
       .toUpperCase()}</div><h3 class="profile-name">${
       customer.name
-    }</h3><p class="profile-contact">${customer.phone || "N/A"} &bull; ${
-      customer.email || "N/A"
+    }</h3><p class="profile-contact">${
+      customer.phone || "N/A"
     }</p></div><div class="profile-section"><h4>Personal Details</h4><div class="profile-stat"><span class="label">Father's Name</span><span class="value">${
       customer.fatherName || "N/A"
     }</span></div><div class="profile-stat"><span class="label">Address</span><span class="value">${
       customer.address || "N/A"
-    }</span></div></div><div class="profile-section"><h4>KYC Details</h4><div class="profile-stat"><span class="label">Aadhar</span><span class="value">${
-      customer.aadhar || "N/A"
-    }</span></div><div class="profile-stat"><span class="label">PAN</span><span class="value">${
-      customer.pan || "N/A"
-    }</span></div></div><div class="loan-progress-section"><h4>Loan Progress (${
-      paidEmis.length
-    } of ${
+    }</span></div></div><div class="profile-section"><h4>KYC Documents</h4><div class="profile-stat"><span class="label">Aadhar Card</span>${aadharButton}</div><div class="profile-stat"><span class="label">PAN Card</span>${panButton}</div><div class="profile-stat"><span class="label">Client Photo</span>${picButton}</div><div class="profile-stat"><span class="label">Bank Details</span>${bankButton}</div></div><div class="loan-progress-section"><h4>Loan Progress (${paidInstallments} of ${
       schedule.length
     } Paid)</h4><div class="progress-bar"><div class="progress-bar-inner" style="width: ${progress}%;"></div></div></div><div class="loan-actions"><button class="btn btn-outline" id="edit-customer-info-btn" data-id="${
       customer.id
@@ -604,45 +550,60 @@ document.addEventListener("DOMContentLoaded", () => {
       customer.status === "active"
         ? `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`
         : ""
-    }${settleButton}${historyButton}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
+    }${settleButton}${historyButton}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
       details.principal
     )}</span></div><div class="calc-result-item"><span>Total Interest Paid</span><span>${formatCurrency(
       totalInterestPaid
-    )}</span></div><div class="calc-result-item"><span>Outstanding Balance</span><span>${formatCurrency(
-      outstanding
-    )}</span></div><div class="calc-result-item"><span>Next EMI Due</span><span>${
-      nextDueEmi ? nextDueEmi.dueDate : "N/A"
+    )}</span></div><div class="calc-result-item"><span>Outstanding Amount</span><span>${formatCurrency(
+      remainingToCollect
+    )}</span></div><div class="calc-result-item"><span>Next Due</span><span>${
+      nextDue ? nextDue.dueDate : "N/A"
     }</span></div></div><div class="modal-summary-stats"><div class="summary-stat-item"><span class="label">Amount Received</span><span class="value received">${formatCurrency(
       totalPaid
     )}</span></div><div class="summary-stat-item"><span class="label">Amount Remaining</span><span class="value remaining">${formatCurrency(
       remainingToCollect
     )}</span></div></div></div></div>`;
+
     const emiTableBody = modalBody.querySelector("#emi-schedule-body-details");
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    schedule.forEach((emi) => {
+
+    schedule.forEach((inst) => {
       const tr = document.createElement("tr");
-      if (emi.status === "Paid") tr.classList.add("emi-paid-row");
-      const isOverdue = new Date(emi.dueDate) < today && emi.status === "Due";
-      const statusClass = isOverdue ? "overdue" : emi.status.toLowerCase();
-      const statusText = isOverdue ? "OVERDUE" : emi.status.toUpperCase();
-      
-      let actionButtons = '';
-      if (customer.status === 'active' && emi.status === 'Due') {
-          actionButtons += `<button class="btn btn-success btn-sm emi-pay-btn" data-month="${emi.month}" data-id="${customer.id}">Paid</button>`;
+      if (inst.status === "Paid") tr.classList.add("emi-paid-row");
+      const isOverdue =
+        new Date(inst.dueDate) < today &&
+        (inst.status === "Due" || inst.status === "Pending");
+
+      let statusClass = inst.status.toLowerCase();
+      let statusText = inst.status.toUpperCase();
+      if (isOverdue) {
+        statusClass = "overdue";
+        statusText = "OVERDUE";
       }
-      if (customer.status === 'active' && emi.status === 'Paid') {
-          actionButtons += `<button class="btn btn-outline btn-sm emi-pay-btn" data-month="${emi.month}" data-id="${customer.id}">Unpaid</button>`;
-          actionButtons += `<button class="btn btn-success btn-sm share-receipt-btn" data-id="${customer.id}" title="Share on WhatsApp"><i class="fab fa-whatsapp"></i></button>`;
+      if (inst.status === "Pending") {
+        statusText += ` (${formatCurrency(inst.pendingAmount)} due)`;
       }
 
-      tr.innerHTML = `<td>${emi.month}</td><td>${
-        emi.dueDate
-      }</td><td>${formatCurrency(
-        emi.emi
+      let actionButtons = "";
+      if (
+        customer.status === "active" &&
+        (inst.status === "Due" || inst.status === "Pending")
+      ) {
+        actionButtons += `<button class="btn btn-success btn-sm record-payment-btn" data-installment="${inst.installment}" data-id="${customer.id}">Pay</button>`;
+      }
+      if (customer.status === "active" && inst.amountPaid > 0) {
+        actionButtons += `<button class="btn btn-outline btn-sm record-payment-btn" data-installment="${inst.installment}" data-id="${customer.id}">Edit</button>`;
+      }
+
+      tr.innerHTML = `<td>${inst.installment}</td><td>${
+        inst.dueDate
+      }</td><td>${formatCurrency(inst.amountDue)}</td><td>${formatCurrency(
+        inst.amountPaid
       )}</td><td><span class="emi-status status-${statusClass}">${statusText}</span></td><td class="no-pdf">${actionButtons}</td>`;
       emiTableBody.appendChild(tr);
     });
+
     getEl("customer-details-modal").classList.add("show");
   };
 
@@ -735,87 +696,62 @@ document.addEventListener("DOMContentLoaded", () => {
         target.closest(".modal").classList.remove("show");
       }
       if (button) {
-        if (button.classList.contains("emi-pay-btn")) {
+        if (button.classList.contains("record-payment-btn")) {
           const customerId = button.dataset.id;
-          const month = parseInt(button.dataset.month, 10);
+          const installmentNum = parseInt(button.dataset.installment, 10);
           const customer = window.allCustomers.active.find(
             (c) => c.id === customerId
           );
-          if (!customer) {
-            showToast("error", "Error", "Customer not found.");
-            return;
-          }
-          const emiIndex = customer.emiSchedule.findIndex(
-            (e) => e.month === month
+          if (!customer) return;
+          const installment = customer.paymentSchedule.find(
+            (p) => p.installment === installmentNum
           );
-          const newStatus =
-            customer.emiSchedule[emiIndex].status === "Paid" ? "Due" : "Paid";
 
-          if (
-            newStatus === "Paid" &&
-            emiIndex > 0 &&
-            customer.emiSchedule[emiIndex - 1].status !== "Paid"
-          ) {
-            showToast(
-              "error",
-              "Action Denied",
-              "Please pay previous EMIs first."
-            );
-            return;
-          }
-          if (
-            newStatus === "Due" &&
-            emiIndex < customer.emiSchedule.length - 1 &&
-            customer.emiSchedule[emiIndex + 1].status === "Paid"
-          ) {
-            showToast(
-              "error",
-              "Action Denied",
-              "Please mark later EMIs as unpaid first."
-            );
-            return;
-          }
+          getEl("payment-customer-id").value = customerId;
+          getEl("payment-installment-number").value = installmentNum;
 
-          showConfirmation(
-            "Confirm Status Change",
-            `Are you sure you want to mark this EMI as ${newStatus}?`,
-            async () => {
-              toggleButtonLoading(button, true, "...");
-              const updatedSchedule = JSON.parse(
-                JSON.stringify(customer.emiSchedule)
-              );
-              updatedSchedule[emiIndex].status = newStatus;
-              try {
-                await db
-                  .collection("customers")
-                  .doc(customerId)
-                  .update({ emiSchedule: updatedSchedule });
-                showToast(
-                  "success",
-                  "Status Updated",
-                  `EMI for month ${month} marked as ${newStatus}.`
-                );
-                if (newStatus === "Paid") {
-                  logActivity("EMI_PAID", {
-                    customerName: customer.name,
-                    amount: updatedSchedule[emiIndex].emi,
-                  });
-                }
-                await loadAndRenderAll();
-                showCustomerDetails(customerId);
-              } catch (error) {
-                showToast("error", "Update Failed", error.message);
-                toggleButtonLoading(button, false);
-              }
-            }
-          );
-        } else if (button.classList.contains("share-receipt-btn")) {
-            const customerId = button.dataset.id;
-            if (typeof generateAndSharePDF === "function") {
-                generateAndSharePDF(customerId);
+          const modal = getEl("payment-modal");
+          modal.querySelector(".payment-customer-name").textContent =
+            customer.name;
+          modal.querySelector(".payment-customer-avatar").textContent =
+            customer.name.charAt(0).toUpperCase();
+          modal.querySelector(
+            ".payment-installment-info"
+          ).textContent = `Installment #${installmentNum}`;
+          modal.querySelector(".payment-due-value").textContent =
+            formatCurrency(installment.amountDue);
+
+          const paymentAmountInput = getEl("payment-amount");
+          paymentAmountInput.value =
+            installment.amountPaid > 0 ? installment.amountPaid : "";
+          paymentAmountInput.setAttribute("max", installment.amountDue);
+
+          const updatePendingDisplay = () => {
+            const amountPaid = parseFloat(paymentAmountInput.value) || 0;
+            const pendingAmount = installment.amountDue - amountPaid;
+            const pendingContainer = modal.querySelector(
+              ".payment-pending-display"
+            );
+            if (pendingAmount > 0.001) {
+              modal.querySelector(".payment-pending-value").textContent =
+                formatCurrency(pendingAmount);
+              pendingContainer.style.display = "block";
             } else {
-                showToast("error", "Error", "PDF generation script not loaded.");
+              pendingContainer.style.display = "none";
             }
+          };
+
+          paymentAmountInput.oninput = updatePendingDisplay;
+
+          const payFullBtn = getEl("pay-full-btn");
+          payFullBtn.onclick = () => {
+            paymentAmountInput.value = installment.amountDue;
+            updatePendingDisplay();
+            paymentAmountInput.focus();
+          };
+
+          updatePendingDisplay();
+          modal.classList.add("show");
         } else if (button.classList.contains("delete-activity-btn")) {
           const activityId = button.dataset.id;
           showConfirmation(
@@ -861,9 +797,10 @@ document.addEventListener("DOMContentLoaded", () => {
               customer.history
                 .map((record, index) => {
                   const details = record.loanDetails;
-                  const paidOnThisLoan = record.emiSchedule
-                    .filter((e) => e.status === "Paid")
-                    .reduce((sum, emi) => sum + emi.emi, 0);
+                  const totalPaidOnLoan = record.paymentSchedule.reduce(
+                    (sum, p) => sum + p.amountPaid,
+                    0
+                  );
                   return `<div class="history-card"><div class="history-card-header"><h3>Previous Loan #${
                     customer.history.length - index
                   }</h3><span class="date">Refinanced on: ${
@@ -871,18 +808,14 @@ document.addEventListener("DOMContentLoaded", () => {
                   }</span></div><div class="history-card-body"><div class="history-stat"><span class="label">Principal</span><span class="value">${formatCurrency(
                     details.principal
                   )}</span></div><div class="history-stat"><span class="label">Interest Rate</span><span class="value">${
-                    details.annualRate
-                  }%</span></div><div class="history-stat"><span class="label">Tenure</span><span class="value">${
-                    details.tenureMonths
-                  } Months</span></div><div class="history-stat"><span class="label">Monthly EMI</span><span class="value">${formatCurrency(
-                    details.emiAmount
+                    details.interestRate
+                  }%</span></div><div class="history-stat"><span class="label">Installments</span><span class="value">${
+                    details.installments
+                  }</span></div><div class="history-stat"><span class="label">Per Installment</span><span class="value">${formatCurrency(
+                    record.paymentSchedule[0]?.amountDue
                   )}</span></div></div><div class="history-card-footer"><div class="history-stat"><span class="label">Total Paid on this Loan</span><span class="value">${formatCurrency(
-                    paidOnThisLoan
-                  )} (${
-                    record.emiSchedule.filter((e) => e.status === "Paid").length
-                  }/${
-                    record.emiSchedule.length
-                  } EMIs)</span></div></div></div>`;
+                    totalPaidOnLoan
+                  )}</span></div></div></div>`;
                 })
                 .join("") || "<p>No history found.</p>";
             getEl("history-modal").classList.add("show");
@@ -914,16 +847,18 @@ document.addEventListener("DOMContentLoaded", () => {
         ) {
           auth.signOut();
         } else if (button.id === "theme-toggle-btn") {
-          if (window.toggleDarkMode) {
-            window.toggleDarkMode();
-          }
+          if (window.toggleDarkMode) window.toggleDarkMode();
         } else if (button.id === "main-add-customer-btn") {
           getEl("customer-form").reset();
           getEl("customer-id").value = "";
           getEl("customer-form-modal-title").textContent = "Add New Customer";
-          getEl("loan-date").value = new Date().toISOString().split("T")[0];
+          const today = new Date().toISOString().split("T")[0];
+          getEl("loan-given-date").value = today;
+          getEl("first-collection-date").value = today;
           getEl("loan-details-fields").style.display = "block";
-          getEl("loan-details-fields").querySelectorAll("input").forEach(input => input.disabled = false);
+          getEl("loan-details-fields")
+            .querySelectorAll("input, select")
+            .forEach((el) => (el.disabled = false));
           getEl("customer-form-modal").classList.add("show");
         } else if (button.id === "edit-customer-info-btn") {
           const customer = [
@@ -935,14 +870,16 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-id").value = customer.id;
           getEl("customer-name").value = customer.name;
           getEl("customer-phone").value = customer.phone || "";
-          getEl("customer-email").value = customer.email || "";
           getEl("customer-father-name").value = customer.fatherName || "";
           getEl("customer-mother-name").value = customer.motherName || "";
           getEl("customer-address").value = customer.address || "";
-          getEl("customer-aadhar").value = customer.aadhar || "";
-          getEl("customer-pan").value = customer.pan || "";
+          getEl("customer-form-modal").querySelectorAll(
+            "fieldset"
+          )[1].style.display = "none";
           getEl("loan-details-fields").style.display = "none";
-          getEl("loan-details-fields").querySelectorAll("input").forEach(input => input.disabled = true);
+          getEl("loan-details-fields")
+            .querySelectorAll("input, select")
+            .forEach((el) => (el.disabled = true));
           getEl("customer-form-modal-title").textContent = "Edit Customer Info";
           getEl("customer-details-modal").classList.remove("show");
           getEl("customer-form-modal").classList.add("show");
@@ -980,11 +917,14 @@ document.addEventListener("DOMContentLoaded", () => {
             (c) => c.id === button.dataset.id
           );
           if (!customer) return;
-          const paid = customer.emiSchedule.filter((e) => e.status === "Paid");
-          const outstanding =
-            paid.length > 0
-              ? paid[paid.length - 1].remainingBalance
-              : customer.loanDetails.principal;
+          const totalPaid = customer.paymentSchedule.reduce(
+            (sum, p) => sum + p.amountPaid,
+            0
+          );
+          const totalRepayable =
+            customer.loanDetails.principal *
+            (1 + customer.loanDetails.interestRate / 100);
+          const outstanding = totalRepayable - totalPaid;
           getEl("refinance-customer-id").value = customer.id;
           getEl("refinance-outstanding").textContent =
             formatCurrency(outstanding);
@@ -1006,7 +946,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else if (button.id === "export-backup-btn") {
           try {
             const backupData = {
-              version: "1.0.0",
+              version: "2.0.0",
               exportedAt: new Date().toISOString(),
               customers: window.allCustomers,
             };
@@ -1057,22 +997,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     throw new Error("Invalid backup file format.");
                   }
                   toggleButtonLoading(button, true, "Importing...");
-
                   const batch = db.batch();
-
-                  const existingActive = await db
+                  const existingCustomers = await db
                     .collection("customers")
                     .where("owner", "==", currentUser.uid)
-                    .where("status", "==", "active")
                     .get();
-                  const existingSettled = await db
-                    .collection("customers")
-                    .where("owner", "==", currentUser.uid)
-                    .where("status", "==", "settled")
-                    .get();
-                  existingActive.docs.forEach((doc) => batch.delete(doc.ref));
-                  existingSettled.docs.forEach((doc) => batch.delete(doc.ref));
-
+                  existingCustomers.docs.forEach((doc) =>
+                    batch.delete(doc.ref)
+                  );
                   [
                     ...backup.customers.active,
                     ...backup.customers.settled,
@@ -1086,9 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     delete newCustData.id;
                     batch.set(newDocRef, newCustData);
                   });
-
                   await batch.commit();
-
                   showToast(
                     "success",
                     "Import Complete",
@@ -1100,13 +1030,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 } finally {
                   toggleButtonLoading(button, false);
                 }
-              };
-              reader.onerror = () => {
-                showToast(
-                  "error",
-                  "Read Error",
-                  "Could not read the selected file."
-                );
               };
               reader.readAsText(file);
             }
@@ -1125,38 +1048,74 @@ document.addEventListener("DOMContentLoaded", () => {
           const customerData = {
             name: getEl("customer-name").value,
             phone: getEl("customer-phone").value,
-            email: getEl("customer-email").value,
             fatherName: getEl("customer-father-name").value,
             motherName: getEl("customer-mother-name").value,
             address: getEl("customer-address").value,
-            aadhar: getEl("customer-aadhar").value,
-            pan: getEl("customer-pan").value,
           };
-
           if (id) {
-            const customerRef = db.collection("customers").doc(id);
-            await customerRef.update(customerData);
-            showToast("success", "Customer Updated", "Details saved successfully.");
+            await db.collection("customers").doc(id).update(customerData);
+            showToast(
+              "success",
+              "Customer Updated",
+              "Details saved successfully."
+            );
           } else {
+            const newCustomerRef = db.collection("customers").doc();
+            const customerId = newCustomerRef.id;
+            const uploadFile = async (fileInputId, fileType) => {
+              const file = getEl(fileInputId).files[0];
+              if (!file) return null;
+              const filePath = `kyc/${currentUser.uid}/${customerId}/${fileType}-${file.name}`;
+              const snapshot = await storage.ref(filePath).put(file);
+              return await snapshot.ref.getDownloadURL();
+            };
+            toggleButtonLoading(saveBtn, true, "Uploading Files...");
+            const [aadharUrl, panUrl, picUrl, bankDetailsUrl] =
+              await Promise.all([
+                uploadFile("customer-aadhar-file", "aadhar"),
+                uploadFile("customer-pan-file", "pan"),
+                uploadFile("customer-pic-file", "picture"),
+                uploadFile("customer-bank-file", "bank"),
+              ]);
+            customerData.kycDocs = {
+              ...(aadharUrl && { aadharUrl }),
+              ...(panUrl && { panUrl }),
+              ...(picUrl && { picUrl }),
+              ...(bankDetailsUrl && { bankDetailsUrl }),
+            };
+
             const p = parseFloat(getEl("principal-amount").value);
             const r = parseFloat(getEl("interest-rate-modal").value);
-            const n = parseInt(getEl("loan-tenure").value, 10);
-            const d = getEl("loan-date").value;
-            if (isNaN(p) || isNaN(r) || isNaN(n) || !d) {
-              throw new Error("Please fill all loan fields correctly.");
-            }
+            const n = parseInt(getEl("number-of-installments").value, 10);
+            const freq = getEl("collection-frequency").value;
+            const givenDate = getEl("loan-given-date").value;
+            const firstDate = getEl("first-collection-date").value;
+            if (isNaN(p) || isNaN(r) || isNaN(n) || !givenDate || !firstDate)
+              throw new Error("Please fill all loan detail fields correctly.");
+
             customerData.loanDetails = {
               principal: p,
-              annualRate: r,
-              tenureMonths: n,
-              emiAmount: calculateEMI(p, r, n),
-              loanDate: d,
+              interestRate: r,
+              installments: n,
+              frequency: freq,
+              loanDate: givenDate,
+              firstCollectionDate: firstDate,
+              type: "simple_interest",
             };
-            customerData.emiSchedule = generateAmortizationSchedule(p, r, n, d);
+            customerData.paymentSchedule = generateSimpleInterestSchedule(
+              p,
+              r,
+              n,
+              firstDate,
+              freq
+            );
             customerData.owner = currentUser.uid;
-            customerData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            customerData.createdAt =
+              firebase.firestore.FieldValue.serverTimestamp();
             customerData.status = "active";
-            await db.collection("customers").add(customerData);
+
+            toggleButtonLoading(saveBtn, true, "Saving Customer...");
+            await newCustomerRef.set(customerData);
             await logActivity("NEW_LOAN", {
               customerName: customerData.name,
               amount: p,
@@ -1171,18 +1130,77 @@ document.addEventListener("DOMContentLoaded", () => {
         } finally {
           toggleButtonLoading(saveBtn, false);
         }
+      } else if (form.id === "payment-form") {
+        const btn = getEl("payment-save-btn");
+        toggleButtonLoading(btn, true, "Saving...");
+        try {
+          const customerId = getEl("payment-customer-id").value;
+          const installmentNum = parseInt(
+            getEl("payment-installment-number").value,
+            10
+          );
+          const amountPaid = parseFloat(getEl("payment-amount").value);
+
+          const customer = window.allCustomers.active.find(
+            (c) => c.id === customerId
+          );
+          if (!customer) throw new Error("Customer not found");
+
+          const updatedSchedule = JSON.parse(
+            JSON.stringify(customer.paymentSchedule)
+          );
+          const instIndex = updatedSchedule.findIndex(
+            (p) => p.installment === installmentNum
+          );
+
+          const installment = updatedSchedule[instIndex];
+          const pending = installment.amountDue - amountPaid;
+          installment.amountPaid = amountPaid;
+          installment.pendingAmount = pending;
+
+          if (pending <= 0.001) {
+            installment.status = "Paid";
+            installment.pendingAmount = 0;
+          } else if (amountPaid > 0) {
+            installment.status = "Pending";
+          } else {
+            installment.status = "Due";
+          }
+
+          await db
+            .collection("customers")
+            .doc(customerId)
+            .update({ paymentSchedule: updatedSchedule });
+          await logActivity("PAYMENT_RECEIVED", {
+            customerName: customer.name,
+            amount: amountPaid,
+          });
+
+          showToast(
+            "success",
+            "Payment Saved",
+            `Payment for installment #${installmentNum} recorded.`
+          );
+          getEl("payment-modal").classList.remove("show");
+          await loadAndRenderAll();
+          showCustomerDetails(customerId);
+        } catch (e) {
+          showToast("error", "Save Failed", e.message);
+        } finally {
+          toggleButtonLoading(btn, false);
+        }
       } else if (form.id === "emi-calculator-form") {
         const p = parseFloat(getEl("calc-principal").value),
           r = parseFloat(getEl("calc-rate").value),
           n = parseInt(getEl("calc-tenure").value, 10);
-        if (isNaN(p) || isNaN(r) || isNaN(n)) {
+        if (isNaN(p) || isNaN(r) || isNaN(n) || n <= 0) {
           showToast("error", "Invalid Input", "Please enter valid numbers.");
           return;
         }
-        const emi = calculateEMI(p, r, n);
-        const totalPayment = emi * n;
-        const totalInterest = totalPayment - p;
-        getEl("result-emi").textContent = formatCurrency(emi);
+        const totalInterest = p * (r / 100);
+        const totalPayment = p + totalInterest;
+        const perInstallment = totalPayment / n;
+        getEl("result-emi").textContent = formatCurrency(perInstallment);
         getEl("result-interest").textContent = formatCurrency(totalInterest);
         getEl("result-total").textContent = formatCurrency(totalPayment);
         getEl("calculator-results").classList.remove("hidden");
@@ -1195,41 +1213,52 @@ document.addEventListener("DOMContentLoaded", () => {
           const doc = await customerRef.get();
           if (!doc.exists) throw new Error("Customer not found");
           const data = doc.data();
+
           const newAmount = parseFloat(getEl("refinance-new-amount").value);
           const newRate = parseFloat(getEl("refinance-new-rate").value);
           const newTenure = parseInt(getEl("refinance-new-tenure").value, 10);
-          const paid = data.emiSchedule.filter((e) => e.status === "Paid");
-          const outstanding =
-            paid.length > 0
-              ? paid[paid.length - 1].remainingBalance
-              : data.loanDetails.principal;
+
+          const totalPaid = data.paymentSchedule.reduce(
+            (sum, p) => sum + p.amountPaid,
+            0
+          );
+          const totalRepayable =
+            data.loanDetails.principal *
+            (1 + data.loanDetails.interestRate / 100);
+          const outstanding = totalRepayable - totalPaid;
+
           const newPrincipal = outstanding + newAmount;
           const newStartDate = new Date().toISOString().split("T")[0];
-          const newSchedule = generateAmortizationSchedule(
+          const newSchedule = generateSimpleInterestSchedule(
             newPrincipal,
             newRate,
             newTenure,
-            newStartDate
+            newStartDate,
+            "daily"
           );
-          const newEmiAmount = calculateEMI(newPrincipal, newRate, newTenure);
+
           const history = data.history || [];
           history.push({
             loanDetails: data.loanDetails,
-            emiSchedule: data.emiSchedule,
+            paymentSchedule: data.paymentSchedule,
             settledDate: newStartDate,
             reason: "Refinanced",
           });
+
           await customerRef.update({
             loanDetails: {
               principal: newPrincipal,
-              annualRate: newRate,
-              tenureMonths: newTenure,
-              emiAmount: newEmiAmount,
+              interestRate: newRate,
+              installments: newTenure,
+              frequency: "daily",
               loanDate: newStartDate,
+              firstCollectionDate: newStartDate,
+              type: "simple_interest",
             },
-            emiSchedule: newSchedule,
+            paymentSchedule: newSchedule,
             history,
           });
+
           await logActivity("LOAN_REFINANCED", {
             customerName: data.name,
             amount: newPrincipal,
@@ -1279,7 +1308,6 @@ document.addEventListener("DOMContentLoaded", () => {
             "Authentication Failed",
             "Incorrect current password or other error."
           );
-          console.error("Password change error:", error);
         } finally {
           toggleButtonLoading(btn, false);
         }
@@ -1287,9 +1315,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.body.addEventListener("change", (e) => {
       if (e.target.id === "dark-mode-toggle") {
-        if (window.toggleDarkMode) {
-          window.toggleDarkMode();
-        }
+        if (window.toggleDarkMode) window.toggleDarkMode();
       } else if (e.target.id === "import-backup-input") {
         const fileName = e.target.files[0]
           ? e.target.files[0].name
@@ -1314,6 +1340,7 @@ document.addEventListener("DOMContentLoaded", () => {
         );
         const listEl = getEl("customers-list");
         if (listEl) {
+          // Re-use the render function
           const renderList = (element, data, type) => {
             if (!element) return;
             element.innerHTML = "";
@@ -1324,11 +1351,19 @@ document.addEventListener("DOMContentLoaded", () => {
             data.forEach((c) => {
               const li = document.createElement("li");
               li.className = "customer-item";
-              const detailsHtml = `<span>EMI: ${formatCurrency(
-                c.loanDetails.emiAmount
-              )}</span><span>Paid: ${
-                c.emiSchedule.filter((e) => e.status === "Paid").length
-              }/${c.emiSchedule.length}</span>`;
+              if (!c.loanDetails || !c.paymentSchedule) {
+                li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details"><span>Data format error</span></div></div><div class="customer-actions"><span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
+                element.appendChild(li);
+                return;
+              }
+              const paidInstallments = c.paymentSchedule.filter(
+                (p) => p.status === "Paid"
+              ).length;
+              const detailsHtml = `<span>Due: ${formatCurrency(
+                c.paymentSchedule[0]?.amountDue
+              )}</span><span>Paid: ${paidInstallments}/${
+                c.paymentSchedule.length
+              }</span>`;
               const deleteButton =
                 type === "settled"
                   ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`

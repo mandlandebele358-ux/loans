@@ -13,11 +13,11 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
-    <link rel="stylesheet" href="themes.css" />
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 
@@ -181,6 +181,7 @@
         <div class="modal-body" id="details-modal-body"></div>
       </div>
     </div>
+
     <div class="modal" id="customer-form-modal">
       <div class="modal-content" style="max-width: 650px">
         <div class="modal-header">
@@ -196,8 +197,8 @@
               <legend>Personal Information</legend>
               <div class="form-row">
                 <div class="form-group">
-                  <label for="customer-name">Full Name</label
-                  ><input
+                  <label for="customer-name">Full Name</label>
+                  <input
                     type="text"
                     id="customer-name"
                     class="form-control"
@@ -205,17 +206,9 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label for="customer-phone">Phone Number</label
-                  ><input type="tel" id="customer-phone" class="form-control" />
+                  <label for="customer-phone">WhatsApp Number</label>
+                  <input type="tel" id="customer-phone" class="form-control" />
                 </div>
-              </div>
-              <div class="form-group">
-                <label for="customer-email">Email</label>
-                <input
-                  type="email"
-                  id="customer-email"
-                  class="form-control"
-                />
               </div>
               <div class="form-row">
                 <div class="form-group">
@@ -245,25 +238,56 @@
               </div>
             </fieldset>
             <fieldset>
-              <legend>KYC Details</legend>
+              <legend>KYC Documents</legend>
+              <p class="setting-description" style="margin-bottom: 1.5rem">
+                Upload PDF or image files for KYC verification.
+              </p>
               <div class="form-row">
                 <div class="form-group">
-                  <label for="customer-aadhar">Aadhar Card Number</label
-                  ><input
-                    type="text"
-                    id="customer-aadhar"
+                  <label for="customer-aadhar-file">Aadhar Card</label>
+                  <input
+                    type="file"
+                    id="customer-aadhar-file"
                     class="form-control"
+                    accept="application/pdf,image/*"
                   />
                 </div>
                 <div class="form-group">
-                  <label for="customer-pan">PAN Card Number</label
-                  ><input type="text" id="customer-pan" class="form-control" />
+                  <label for="customer-pan-file">PAN Card</label>
+                  <input
+                    type="file"
+                    id="customer-pan-file"
+                    class="form-control"
+                    accept="application/pdf,image/*"
+                  />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="customer-pic-file">Client's Picture</label>
+                  <input
+                    type="file"
+                    id="customer-pic-file"
+                    class="form-control"
+                    accept="image/*"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="customer-bank-file"
+                    >Bank Details (e.g., Cheque)</label
+                  >
+                  <input
+                    type="file"
+                    id="customer-bank-file"
+                    class="form-control"
+                    accept="application/pdf,image/*"
+                  />
                 </div>
               </div>
             </fieldset>
             <div id="loan-details-fields">
               <fieldset>
-                <legend>Loan Details</legend>
+                <legend>Loan Details (Simple Interest)</legend>
                 <div class="form-group">
                   <label for="principal-amount">Principal Loan Amount (₹)</label
                   ><input
@@ -277,7 +301,7 @@
                 <div class="form-row">
                   <div class="form-group">
                     <label for="interest-rate-modal"
-                      >Annual Interest Rate (%)</label
+                      >Total Interest Rate (%)</label
                     ><input
                       type="number"
                       id="interest-rate-modal"
@@ -285,24 +309,53 @@
                       required
                       min="0"
                       step="0.01"
+                      placeholder="e.g. 10 for 10%"
                     />
                   </div>
                   <div class="form-group">
-                    <label for="loan-tenure">Tenure (in Months)</label
-                    ><input
+                    <label for="collection-frequency"
+                      >Collection Frequency</label
+                    >
+                    <select
+                      id="collection-frequency"
+                      class="form-control"
+                      required
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="number-of-installments"
+                      >Number of Installments</label
+                    >
+                    <input
                       type="number"
-                      id="loan-tenure"
+                      id="number-of-installments"
                       class="form-control"
                       required
                       min="1"
                     />
                   </div>
+                  <div class="form-group">
+                    <label for="loan-given-date">Loan Given Date</label>
+                    <input
+                      type="date"
+                      id="loan-given-date"
+                      class="form-control"
+                      required
+                    />
+                  </div>
                 </div>
                 <div class="form-group">
-                  <label for="loan-date">Loan Start Date</label
+                  <label for="first-collection-date"
+                    >First Collection Date</label
                   ><input
                     type="date"
-                    id="loan-date"
+                    id="first-collection-date"
                     class="form-control"
                     required
                   />
@@ -327,6 +380,60 @@
         </div>
       </div>
     </div>
+
+    <div class="modal" id="payment-modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Record Payment</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem 2rem;">
+                <form id="payment-form">
+                    <input type="hidden" id="payment-customer-id" />
+                    <input type="hidden" id="payment-installment-number" />
+                    
+                    <div class="payment-summary-card">
+                        <div class="payment-customer-info">
+                            <span class="payment-customer-avatar">A</span>
+                            <div class="payment-customer-details">
+                                <span class="payment-customer-name">Customer Name</span>
+                                <span class="payment-installment-info">Installment #1</span>
+                            </div>
+                        </div>
+                        <div class="payment-due-info">
+                            <span class="payment-due-label">Amount Due</span>
+                            <span class="payment-due-value">₹0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 2rem;">
+                        <label for="payment-amount">Enter Amount Paid</label>
+                        <div class="input-group-payment">
+                            <span class="input-group-icon">₹</span>
+                            <input type="number" id="payment-amount" class="form-control form-control-lg" required step="0.01" min="0" placeholder="0.00"/>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-quick-actions">
+                        <button type="button" class="btn btn-outline btn-sm" id="pay-full-btn">Pay Full Amount</button>
+                    </div>
+
+                    <div class="payment-pending-display">
+                        <span class="payment-pending-label">Pending for this installment:</span>
+                        <strong class="payment-pending-value">₹0.00</strong>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-close-modal>Cancel</button>
+                <button type="submit" form="payment-form" id="payment-save-btn" class="btn btn-primary">
+                    <span class="loading-spinner hidden"></span>
+                    <span>Save Payment</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="refinance-modal">
       <div class="modal-content" style="max-width: 500px">
         <div class="modal-header">
@@ -357,7 +464,9 @@
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="refinance-new-rate">New Annual Rate (%)</label>
+                <label for="refinance-new-rate"
+                  >New Total Interest Rate (%)</label
+                >
                 <input
                   type="number"
                   id="refinance-new-rate"
@@ -368,7 +477,9 @@
                 />
               </div>
               <div class="form-group">
-                <label for="refinance-new-tenure">New Tenure (Months)</label>
+                <label for="refinance-new-tenure"
+                  >New No. of Installments</label
+                >
                 <input
                   type="number"
                   id="refinance-new-tenure"
@@ -378,6 +489,10 @@
                 />
               </div>
             </div>
+            <p class="setting-description">
+              The new loan will be a daily collection, simple interest loan
+              starting from today.
+            </p>
             <p class="summary-line">
               New Principal will be:
               <strong id="refinance-new-principal">₹0.00</strong>
@@ -400,6 +515,7 @@
         </div>
       </div>
     </div>
+
     <div class="modal" id="confirmation-modal">
       <div class="modal-content" style="max-width: 450px">
         <div class="modal-header">
@@ -427,6 +543,7 @@
         </div>
       </div>
     </div>
+
     <div class="modal" id="history-modal">
       <div class="modal-content">
         <div class="modal-header">

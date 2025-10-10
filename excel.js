@@ -5,7 +5,6 @@ Proprietary and Confidential – Unauthorized copying, modification, or distribu
 via any medium, is strictly prohibited without prior written consent from Avdesh Jadon.
 */
 
-
 function exportToExcel(customers, fileName = "customer-data.xlsx") {
   if (!customers || customers.length === 0) {
     alert("No data to export.");
@@ -13,7 +12,7 @@ function exportToExcel(customers, fileName = "customer-data.xlsx") {
   }
 
   const flattenedData = customers.map((customer) => {
-    if (!customer.loanDetails || !Array.isArray(customer.emiSchedule)) {
+    if (!customer.loanDetails || !Array.isArray(customer.paymentSchedule)) {
       return {
         Name: customer.name,
         Phone: customer.phone || "N/A",
@@ -21,31 +20,43 @@ function exportToExcel(customers, fileName = "customer-data.xlsx") {
       };
     }
 
-    const paidEmis = customer.emiSchedule.filter((e) => e.status === "Paid");
-    const outstanding =
-      paidEmis.length > 0
-        ? paidEmis[paidEmis.length - 1].remainingBalance
-        : customer.loanDetails.principal;
-    const totalInterestPaid = paidEmis.reduce(
-      (sum, emi) => sum + emi.interestComponent,
+    const totalPaid = customer.paymentSchedule.reduce(
+      (sum, p) => sum + p.amountPaid,
       0
     );
+    const totalRepayable =
+      customer.loanDetails.principal *
+      (1 + customer.loanDetails.interestRate / 100);
+    const outstanding = totalRepayable - totalPaid;
+    const totalInterestPaid = Math.max(
+      0,
+      totalPaid - customer.loanDetails.principal
+    );
+    const paidInstallments = customer.paymentSchedule.filter(
+      (p) => p.status === "Paid"
+    ).length;
+
+    const kycDocs = customer.kycDocs || {};
 
     return {
       Name: customer.name,
-      Phone: customer.phone || "N/A",
+      "WhatsApp Number": customer.phone || "N/A",
       "Father's Name": customer.fatherName || "N/A",
       Address: customer.address || "N/A",
-      Aadhar: customer.aadhar || "N/A",
-      PAN: customer.pan || "N/A",
+      "Aadhar URL": kycDocs.aadharUrl || "N/A",
+      "PAN URL": kycDocs.panUrl || "N/A",
+      "Picture URL": kycDocs.picUrl || "N/A",
+      "Bank Details URL": kycDocs.bankDetailsUrl || "N/A",
       "Loan Principal (₹)": customer.loanDetails.principal,
-      "Interest Rate (%)": customer.loanDetails.annualRate,
-      "Tenure (Months)": customer.loanDetails.tenureMonths,
-      "EMI Amount (₹)": customer.loanDetails.emiAmount,
+      "Total Interest Rate (%)": customer.loanDetails.interestRate,
+      "No. of Installments": customer.loanDetails.installments,
+      Frequency: customer.loanDetails.frequency,
+      "Installment Amount (₹)": customer.paymentSchedule[0]?.amountDue,
       "Loan Date": customer.loanDetails.loanDate,
       Status: customer.status,
-      "EMIs Paid": `${paidEmis.length}/${customer.emiSchedule.length}`,
+      "Installments Paid": `${paidInstallments}/${customer.paymentSchedule.length}`,
       "Outstanding Balance (₹)": outstanding,
+      "Total Amount Paid (₹)": totalPaid,
       "Total Interest Paid (₹)": totalInterestPaid,
     };
   });
