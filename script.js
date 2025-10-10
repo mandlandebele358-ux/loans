@@ -1054,9 +1054,8 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           const customerData = {
             name: getEl("customer-name").value,
-            phone: getEl("customer-phone").value,
+            phone: getEl("customer-mobile").value,
             fatherName: getEl("customer-father-name").value,
-            motherName: getEl("customer-mother-name").value,
             address: getEl("customer-address").value,
           };
           if (id) {
