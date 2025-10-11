@@ -1060,11 +1060,10 @@ html[data-theme="dark"] select.form-control {
 textarea.form-control {
   min-height: 80px;
 }
-/* --- NEW --- Custom File Input Styling */
 .file-input-wrapper {
   position: relative;
   width: 100%;
-  height: 48px; /* Match form-control height */
+  height: 48px;
 }
 .file-input {
   position: absolute;
@@ -1105,7 +1104,6 @@ textarea.form-control {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* --- END NEW --- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1411,6 +1409,32 @@ fieldset legend {
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
+.modal-title-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.loan-frequency-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.frequency-daily {
+  background-color: var(--success-t-15);
+  color: var(--success);
+}
+.frequency-weekly {
+  background-color: var(--warning-t-15);
+  color: var(--warning);
+}
+.frequency-monthly {
+  background-color: var(--primary-t-08);
+  color: var(--primary);
+}
 .modal-close {
   background: none;
   border: none;
@@ -1430,7 +1454,7 @@ fieldset legend {
   gap: 0.75rem;
   background-color: var(--bg-main);
   flex-shrink: 0;
-  flex-wrap: wrap; /* Allow buttons to wrap on small screens */
+  flex-wrap: wrap;
 }
 .details-view-grid {
   display: grid;
@@ -2128,15 +2152,17 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
     margin-left: 30px;
     margin-top: -10px;
   }
-  /* --- NEW --- Modal footer responsive */
   .modal-footer {
     flex-direction: column;
     gap: 0.5rem;
   }
   .modal-footer .btn {
     width: 100%;
+    justify-content: center;
   }
-  /* --- END NEW --- */
+  .modal-footer .btn .btn-text-desktop {
+    display: inline; /* Show text on mobile for stacked buttons */
+  }
 }
 
 /* New, Better Payment Modal UI Styles */
@@ -2234,7 +2260,7 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
   padding: 0.75rem;
   background-color: var(--danger-t-10);
   border-radius: var(--border-radius);
-  display: none; /* Hidden by default */
+  display: none;
 }
 
 .payment-pending-label {

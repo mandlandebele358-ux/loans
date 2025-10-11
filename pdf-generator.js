@@ -48,7 +48,6 @@ async function generateAndDownloadPDF(customerId) {
   const borderColor = "#e2e8f0";
   const backgroundColor = "#f8fafc";
   
-  // --- Status Colors ---
   const paidBgColor = "#dcfce7";      // Paid: Fresh, light green background
   const paidTextColor = "#166534";   // Paid: Dark, rich green text
   const pendingBgColor = "#fef3c7";   // Pending: Warning-type yellow background

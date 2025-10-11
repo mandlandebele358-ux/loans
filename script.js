@@ -14,31 +14,22 @@ const storage = firebase.storage();
 
 window.allCustomers = { active: [], settled: [] };
 
-// --- CORRECTED Centralized Interest Calculation ---
 const calculateTotalInterest = (loanDetails) => {
   if (!loanDetails) return 0;
   const { principal, interestRate, installments, frequency } = loanDetails;
-  const monthlyRateDecimal = interestRate / 100; // e.g., 10% -> 0.10
+  const monthlyRateDecimal = interestRate / 100;
 
   let totalInterest;
-
-  // The logic is P * R * T, where Rate (R) is adjusted to match the Time period (T).
-  // T is simply the number of installments.
   switch (frequency) {
     case "monthly":
-      // R = monthly rate, T = number of months.
       totalInterest = principal * monthlyRateDecimal * installments;
       break;
     case "weekly":
-      // Convert monthly rate to a weekly rate, assuming 4 weeks/month.
       const weeklyRate = monthlyRateDecimal / 4;
-      // R = weekly rate, T = number of weeks.
       totalInterest = principal * weeklyRate * installments;
       break;
     case "daily":
-      // Convert monthly rate to a daily rate, assuming 30 days/month as requested.
       const dailyRate = monthlyRateDecimal / 30;
-      // R = daily rate, T = number of days.
       totalInterest = principal * dailyRate * installments;
       break;
     default:
@@ -305,7 +296,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }</div></div></div><div class="dashboard-grid"><div class="form-card chart-card"><h3 >Portfolio Overview</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div><div class="form-card chart-card grid-col-span-2"><h3 >Profit Over Time <div class="chart-controls" id="profit-chart-controls"><button class="btn btn-sm btn-outline active" data-frame="monthly">Month</button><button class="btn btn-sm btn-outline" data-frame="yearly">Year</button></div></h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div><div class="form-card"><h3><i class="fas fa-clock" style="color:var(--primary)"></i> Upcoming Installments</h3><div id="upcoming-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Overdue Installments</h3><div id="overdue-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-history"></i> Recent Activity <button class="btn btn-danger btn-sm" id="clear-all-activities-btn" title="Clear all activities"><i class="fas fa-trash"></i></button></h3><div id="recent-activity-container" class="activity-container"></div></div></div>`;
     getEl(
       "calculator-section"
-    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row"><div class="form-group"><label for="calc-rate">Monthly Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="calc-tenure">Number of Installments (Months)</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 12" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
+    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row"><div class="form-group"><label for="calc-rate">Monthly Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="calc-tenure">Number of Installments (in Months)</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 1" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
     getEl("settings-section").innerHTML = `<div class="settings-grid">
         <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-shield-alt"></i><h3>Security</h3></div><div class="setting-card-body"><p class="setting-description">Manage your account security settings.</p><form id="change-password-form"><div class="form-group"><label for="current-password">Current Password</label><input type="password" id="current-password" class="form-control" required/></div><div class="form-row"><div class="form-group"><label for="new-password">New Password</label><input type="password" id="new-password" class="form-control" required/></div><div class="form-group"><label for="confirm-password">Confirm New Password</label><input type="password" id="confirm-password" class="form-control" required/></div></div><button id="change-password-btn" type="submit" class="btn btn-primary"><span class="loading-spinner hidden"></span><span>Update Password</span></button></form></div></div>
         <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-palette"></i><h3>Appearance</h3></div><div class="setting-card-body"><p class="setting-description">Customize the look and feel of the application.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-moon"></i><span>Dark Mode</span></div><div class="setting-control"><label class="switch"><input type="checkbox" id="dark-mode-toggle" /><span class="slider round"></span></label></div></div></div></div>
@@ -530,7 +521,14 @@ document.addEventListener("DOMContentLoaded", () => {
     ].find((c) => c.id === customerId);
     if (!customer) return;
     const modalBody = getEl("details-modal-body");
-    getEl("details-modal-title").textContent = `Loan Details: ${customer.name}`;
+
+    getEl("details-modal-title").textContent = `Details: ${customer.name}`;
+    const frequencyBadge = getEl("details-modal-frequency");
+    if (frequencyBadge && customer.loanDetails?.frequency) {
+      frequencyBadge.textContent = customer.loanDetails.frequency;
+      frequencyBadge.className = `loan-frequency-badge frequency-${customer.loanDetails.frequency}`;
+    }
+
     getEl("generate-pdf-btn").dataset.id = customerId;
     getEl("send-whatsapp-btn").dataset.id = customerId;
 
@@ -774,9 +772,7 @@ document.addEventListener("DOMContentLoaded", () => {
             customer.name;
           modal.querySelector(".payment-customer-avatar").textContent =
             customer.name.charAt(0).toUpperCase();
-          getEl(
-            "payment-installment-display"
-          ).textContent = `#${installmentNum}`;
+          getEl("payment-installment-display").textContent = installmentNum;
           getEl("payment-due-display").textContent = formatCurrency(
             installment.amountDue
           );
@@ -919,7 +915,6 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("loan-details-fields")
             .querySelectorAll("input, select")
             .forEach((el) => (el.disabled = false));
-          // Reset file input labels
           document
             .querySelectorAll(".file-input-label span")
             .forEach((span) => {
@@ -1264,7 +1259,7 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        const totalInterest = p * (r / 100) * n; // P * R * T (where T is in months)
+        const totalInterest = p * (r / 100) * n;
         const totalPayment = p + totalInterest;
         const perInstallment = totalPayment / n;
 
@@ -1389,7 +1384,7 @@ document.addEventListener("DOMContentLoaded", () => {
           : "No file chosen";
         getEl("file-name-display").textContent = fileName;
       } else if (e.target.classList.contains("file-input")) {
-        const label = e.target.nextElementSibling; // Get the label
+        const label = e.target.nextElementSibling;
         const labelSpan = label.querySelector("span");
         const fileName =
           e.target.files.length > 0

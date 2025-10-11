@@ -174,16 +174,26 @@
     <div class="modal" id="customer-details-modal">
       <div class="modal-content large">
         <div class="modal-header">
-          <h3 class="modal-title" id="details-modal-title">Customer Details</h3>
+          <div class="modal-title-container">
+            <h3 class="modal-title" id="details-modal-title">
+              Customer Details
+            </h3>
+            <span
+              class="loan-frequency-badge"
+              id="details-modal-frequency"
+            ></span>
+          </div>
           <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body" id="details-modal-body"></div>
         <div class="modal-footer">
           <button class="btn btn-primary" id="generate-pdf-btn">
-            <i class="fas fa-file-pdf"></i> Download Statement
+            <i class="fas fa-file-pdf"></i
+            ><span class="btn-text-desktop"> Download Statement</span>
           </button>
           <button class="btn btn-whatsapp" id="send-whatsapp-btn">
-            <i class="fab fa-whatsapp"></i> Send on WhatsApp
+            <i class="fab fa-whatsapp"></i
+            ><span class="btn-text-desktop"> Send on WhatsApp</span>
           </button>
           <button class="btn btn-outline" data-close-modal>Close</button>
         </div>
@@ -333,7 +343,7 @@
                 <div class="form-row">
                   <div class="form-group">
                     <label for="interest-rate-modal"
-                      >Annual Interest Rate (%)</label
+                      >Monthly Interest Rate (%)</label
                     ><input
                       type="number"
                       id="interest-rate-modal"
@@ -435,7 +445,7 @@
                 <span
                   class="payment-detail-value"
                   id="payment-installment-display"
-                  >#1</span
+                  >1</span
                 >
               </div>
               <div class="payment-detail-item">
@@ -528,7 +538,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label for="refinance-new-rate"
-                  >New Annual Interest Rate (%)</label
+                  >New Monthly Interest Rate (%)</label
                 >
                 <input
                   type="number"
