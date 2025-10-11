@@ -13,15 +13,47 @@ const auth = firebase.auth();
 const storage = firebase.storage();
 
 window.allCustomers = { active: [], settled: [] };
+
+// --- CORRECTED Centralized Interest Calculation ---
+const calculateTotalInterest = (loanDetails) => {
+  if (!loanDetails) return 0;
+  const { principal, interestRate, installments, frequency } = loanDetails;
+  const monthlyRateDecimal = interestRate / 100; // e.g., 10% -> 0.10
+
+  let totalInterest;
+
+  // The logic is P * R * T, where Rate (R) is adjusted to match the Time period (T).
+  // T is simply the number of installments.
+  switch (frequency) {
+    case "monthly":
+      // R = monthly rate, T = number of months.
+      totalInterest = principal * monthlyRateDecimal * installments;
+      break;
+    case "weekly":
+      // Convert monthly rate to a weekly rate, assuming 4 weeks/month.
+      const weeklyRate = monthlyRateDecimal / 4;
+      // R = weekly rate, T = number of weeks.
+      totalInterest = principal * weeklyRate * installments;
+      break;
+    case "daily":
+      // Convert monthly rate to a daily rate, assuming 30 days/month as requested.
+      const dailyRate = monthlyRateDecimal / 30;
+      // R = daily rate, T = number of days.
+      totalInterest = principal * dailyRate * installments;
+      break;
+    default:
+      totalInterest = 0;
+  }
+  return totalInterest;
+};
+
 window.processProfitData = (allCusts) => {
   const data = [];
   const today = new Date();
   today.setHours(23, 59, 59, 999);
   [...allCusts.active, ...allCusts.settled].forEach((customer) => {
     if (customer.loanDetails && customer.paymentSchedule) {
-      const totalInterest =
-        customer.loanDetails.principal *
-        (customer.loanDetails.interestRate / 100);
+      const totalInterest = calculateTotalInterest(customer.loanDetails);
       const totalRepayable = customer.loanDetails.principal + totalInterest;
       if (totalRepayable === 0) return;
 
@@ -82,7 +114,12 @@ document.addEventListener("DOMContentLoaded", () => {
     `₹${Math.round(Number(amount || 0)).toLocaleString("en-IN")}`;
 
   const generateSimpleInterestSchedule = (p, r, n, startDate, frequency) => {
-    const totalInterest = p * (r / 100);
+    const totalInterest = calculateTotalInterest({
+      principal: p,
+      interestRate: r,
+      installments: n,
+      frequency: frequency,
+    });
     const totalRepayable = p + totalInterest;
     const installmentAmount = totalRepayable / n;
     const schedule = [];
@@ -156,8 +193,9 @@ document.addEventListener("DOMContentLoaded", () => {
     [...activeLoans, ...settledLoans].forEach((c) => {
       if (c.loanDetails && c.paymentSchedule) {
         totalPrincipal += c.loanDetails.principal;
-        const totalRepayable =
-          c.loanDetails.principal * (1 + c.loanDetails.interestRate / 100);
+
+        const loanTotalInterest = calculateTotalInterest(c.loanDetails);
+        const totalRepayable = c.loanDetails.principal + loanTotalInterest;
         const totalPaid = c.paymentSchedule.reduce(
           (sum, p) => sum + p.amountPaid,
           0
@@ -267,7 +305,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }</div></div></div><div class="dashboard-grid"><div class="form-card chart-card"><h3 >Portfolio Overview</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div><div class="form-card chart-card grid-col-span-2"><h3 >Profit Over Time <div class="chart-controls" id="profit-chart-controls"><button class="btn btn-sm btn-outline active" data-frame="monthly">Month</button><button class="btn btn-sm btn-outline" data-frame="yearly">Year</button></div></h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div><div class="form-card"><h3><i class="fas fa-clock" style="color:var(--primary)"></i> Upcoming Installments</h3><div id="upcoming-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Overdue Installments</h3><div id="overdue-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-history"></i> Recent Activity <button class="btn btn-danger btn-sm" id="clear-all-activities-btn" title="Clear all activities"><i class="fas fa-trash"></i></button></h3><div id="recent-activity-container" class="activity-container"></div></div></div>`;
     getEl(
       "calculator-section"
-    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row"><div class="form-group"><label for="calc-rate">Total Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="calc-tenure">Number of Installments</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 100" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
+    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row"><div class="form-group"><label for="calc-rate">Monthly Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="calc-tenure">Number of Installments (Months)</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 12" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
     getEl("settings-section").innerHTML = `<div class="settings-grid">
         <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-shield-alt"></i><h3>Security</h3></div><div class="setting-card-body"><p class="setting-description">Manage your account security settings.</p><form id="change-password-form"><div class="form-group"><label for="current-password">Current Password</label><input type="password" id="current-password" class="form-control" required/></div><div class="form-row"><div class="form-group"><label for="new-password">New Password</label><input type="password" id="new-password" class="form-control" required/></div><div class="form-group"><label for="confirm-password">Confirm New Password</label><input type="password" id="confirm-password" class="form-control" required/></div></div><button id="change-password-btn" type="submit" class="btn btn-primary"><span class="loading-spinner hidden"></span><span>Update Password</span></button></form></div></div>
         <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-palette"></i><h3>Appearance</h3></div><div class="setting-card-body"><p class="setting-description">Customize the look and feel of the application.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-moon"></i><span>Dark Mode</span></div><div class="setting-control"><label class="switch"><input type="checkbox" id="dark-mode-toggle" /><span class="slider round"></span></label></div></div></div></div>
@@ -496,7 +534,6 @@ document.addEventListener("DOMContentLoaded", () => {
     getEl("generate-pdf-btn").dataset.id = customerId;
     getEl("send-whatsapp-btn").dataset.id = customerId;
 
-
     if (!customer.loanDetails || !customer.paymentSchedule) {
       modalBody.innerHTML = `<p style="padding: 2rem; text-align: center;">This customer has incomplete or outdated loan data.</p>`;
       getEl("customer-details-modal").classList.add("show");
@@ -504,8 +541,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const { paymentSchedule: schedule, loanDetails: details } = customer;
+
+    const totalInterest = calculateTotalInterest(details);
+
     const totalPaid = schedule.reduce((sum, p) => sum + p.amountPaid, 0);
-    const totalRepayable = details.principal * (1 + details.interestRate / 100);
+    const totalRepayable = details.principal + totalInterest;
     const remainingToCollect = totalRepayable - totalPaid;
     const paidInstallments = schedule.filter((p) => p.status === "Paid").length;
     const progress = (paidInstallments / schedule.length) * 100;
@@ -613,18 +653,18 @@ document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged(async (user) => {
     currentUser = user;
     if (user) {
-        getEl("auth-container").classList.add("hidden");
-        getEl("admin-dashboard").classList.remove("hidden");
-        await loadAndRenderAll();
-        if (window.applyTheme) {
-            const savedTheme = localStorage.getItem("theme") || "default";
-            window.applyTheme(savedTheme);
-        }
+      getEl("auth-container").classList.add("hidden");
+      getEl("admin-dashboard").classList.remove("hidden");
+      await loadAndRenderAll();
+      if (window.applyTheme) {
+        const savedTheme = localStorage.getItem("theme") || "default";
+        window.applyTheme(savedTheme);
+      }
     } else {
-        window.allCustomers = { active: [], settled: [] };
-        recentActivities = [];
-        getEl("auth-container").classList.remove("hidden");
-        getEl("admin-dashboard").classList.add("hidden");
+      window.allCustomers = { active: [], settled: [] };
+      recentActivities = [];
+      getEl("auth-container").classList.remove("hidden");
+      getEl("admin-dashboard").classList.add("hidden");
     }
   });
 
@@ -704,61 +744,74 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       if (button) {
         if (button.id === "generate-pdf-btn") {
-            const customerId = button.dataset.id;
-            if (customerId) generateAndDownloadPDF(customerId);
+          const customerId = button.dataset.id;
+          if (customerId) generateAndDownloadPDF(customerId);
         } else if (button.id === "send-whatsapp-btn") {
-            const customerId = button.dataset.id;
-            const customer = [...window.allCustomers.active, ...window.allCustomers.settled].find(c => c.id === customerId);
-            if (customer) {
-                openWhatsApp(customer);
-            }
+          const customerId = button.dataset.id;
+          const customer = [
+            ...window.allCustomers.active,
+            ...window.allCustomers.settled,
+          ].find((c) => c.id === customerId);
+          if (customer) {
+            openWhatsApp(customer);
+          }
         } else if (button.classList.contains("record-payment-btn")) {
-            const customerId = button.dataset.id;
-            const installmentNum = parseInt(button.dataset.installment, 10);
-            const customer = window.allCustomers.active.find(
-                (c) => c.id === customerId
-            );
-            if (!customer) return;
-            const installment = customer.paymentSchedule.find(
-                (p) => p.installment === installmentNum
-            );
+          const customerId = button.dataset.id;
+          const installmentNum = parseInt(button.dataset.installment, 10);
+          const customer = window.allCustomers.active.find(
+            (c) => c.id === customerId
+          );
+          if (!customer) return;
+          const installment = customer.paymentSchedule.find(
+            (p) => p.installment === installmentNum
+          );
 
-            getEl("payment-customer-id").value = customerId;
-            getEl("payment-installment-number").value = installmentNum;
-            
-            const modal = getEl("payment-modal");
-            modal.querySelector(".payment-customer-name").textContent = customer.name;
-            modal.querySelector(".payment-customer-avatar").textContent = customer.name.charAt(0).toUpperCase();
-            getEl("payment-installment-display").textContent = `#${installmentNum}`;
-            getEl("payment-due-display").textContent = formatCurrency(installment.amountDue);
-            
-            const paymentAmountInput = getEl("payment-amount");
-            paymentAmountInput.value = installment.amountPaid > 0 ? installment.amountPaid : '';
-            paymentAmountInput.setAttribute("max", installment.amountDue);
-            
-            const updatePendingDisplay = () => {
-                const amountPaid = parseFloat(paymentAmountInput.value) || 0;
-                const pendingAmount = installment.amountDue - amountPaid;
-                const pendingContainer = modal.querySelector('.payment-pending-display');
-                if (pendingAmount > 0.001) {
-                    modal.querySelector('.payment-pending-value').textContent = formatCurrency(pendingAmount);
-                    pendingContainer.style.display = 'block';
-                } else {
-                    pendingContainer.style.display = 'none';
-                }
-            };
+          getEl("payment-customer-id").value = customerId;
+          getEl("payment-installment-number").value = installmentNum;
 
-            paymentAmountInput.oninput = updatePendingDisplay;
-            
-            const payFullBtn = getEl("pay-full-btn");
-            payFullBtn.onclick = () => {
-                paymentAmountInput.value = installment.amountDue;
-                updatePendingDisplay();
-                paymentAmountInput.focus();
-            };
-            
+          const modal = getEl("payment-modal");
+          modal.querySelector(".payment-customer-name").textContent =
+            customer.name;
+          modal.querySelector(".payment-customer-avatar").textContent =
+            customer.name.charAt(0).toUpperCase();
+          getEl(
+            "payment-installment-display"
+          ).textContent = `#${installmentNum}`;
+          getEl("payment-due-display").textContent = formatCurrency(
+            installment.amountDue
+          );
+
+          const paymentAmountInput = getEl("payment-amount");
+          paymentAmountInput.value =
+            installment.amountPaid > 0 ? installment.amountPaid : "";
+          paymentAmountInput.setAttribute("max", installment.amountDue);
+
+          const updatePendingDisplay = () => {
+            const amountPaid = parseFloat(paymentAmountInput.value) || 0;
+            const pendingAmount = installment.amountDue - amountPaid;
+            const pendingContainer = modal.querySelector(
+              ".payment-pending-display"
+            );
+            if (pendingAmount > 0.001) {
+              modal.querySelector(".payment-pending-value").textContent =
+                formatCurrency(pendingAmount);
+              pendingContainer.style.display = "block";
+            } else {
+              pendingContainer.style.display = "none";
+            }
+          };
+
+          paymentAmountInput.oninput = updatePendingDisplay;
+
+          const payFullBtn = getEl("pay-full-btn");
+          payFullBtn.onclick = () => {
+            paymentAmountInput.value = installment.amountDue;
             updatePendingDisplay();
-            modal.classList.add("show");
+            paymentAmountInput.focus();
+          };
+
+          updatePendingDisplay();
+          modal.classList.add("show");
         } else if (button.classList.contains("delete-activity-btn")) {
           const activityId = button.dataset.id;
           showConfirmation(
@@ -866,6 +919,12 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("loan-details-fields")
             .querySelectorAll("input, select")
             .forEach((el) => (el.disabled = false));
+          // Reset file input labels
+          document
+            .querySelectorAll(".file-input-label span")
+            .forEach((span) => {
+              span.textContent = "Choose a file...";
+            });
           getEl("customer-form-modal").classList.add("show");
         } else if (button.id === "edit-customer-info-btn") {
           const customer = [
@@ -924,13 +983,14 @@ document.addEventListener("DOMContentLoaded", () => {
             (c) => c.id === button.dataset.id
           );
           if (!customer) return;
+
+          const totalInterest = calculateTotalInterest(customer.loanDetails);
           const totalPaid = customer.paymentSchedule.reduce(
             (sum, p) => sum + p.amountPaid,
             0
           );
-          const totalRepayable =
-            customer.loanDetails.principal *
-            (1 + customer.loanDetails.interestRate / 100);
+          const totalRepayable = customer.loanDetails.principal + totalInterest;
+
           const outstanding = totalRepayable - totalPaid;
           getEl("refinance-customer-id").value = customer.id;
           getEl("refinance-outstanding").textContent =
@@ -1054,7 +1114,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           const customerData = {
             name: getEl("customer-name").value,
-            phone: getEl("customer-mobile").value,
+            phone: getEl("customer-phone").value,
             fatherName: getEl("customer-father-name").value,
             address: getEl("customer-address").value,
           };
@@ -1197,15 +1257,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } else if (form.id === "emi-calculator-form") {
         const p = parseFloat(getEl("calc-principal").value),
-          r = parseFloat(getEl("calc-rate").value),
-          n = parseInt(getEl("calc-tenure").value, 10);
+          r = parseFloat(getEl("calc-rate").value), // monthly rate
+          n = parseInt(getEl("calc-tenure").value, 10); // months
         if (isNaN(p) || isNaN(r) || isNaN(n) || n <= 0) {
           showToast("error", "Invalid Input", "Please enter valid numbers.");
           return;
         }
-        const totalInterest = p * (r / 100);
+
+        const totalInterest = p * (r / 100) * n; // P * R * T (where T is in months)
         const totalPayment = p + totalInterest;
         const perInstallment = totalPayment / n;
+
         getEl("result-emi").textContent = formatCurrency(perInstallment);
         getEl("result-interest").textContent = formatCurrency(totalInterest);
         getEl("result-total").textContent = formatCurrency(totalPayment);
@@ -1224,13 +1286,12 @@ document.addEventListener("DOMContentLoaded", () => {
           const newRate = parseFloat(getEl("refinance-new-rate").value);
           const newTenure = parseInt(getEl("refinance-new-tenure").value, 10);
 
+          const totalInterest = calculateTotalInterest(data.loanDetails);
           const totalPaid = data.paymentSchedule.reduce(
             (sum, p) => sum + p.amountPaid,
             0
           );
-          const totalRepayable =
-            data.loanDetails.principal *
-            (1 + data.loanDetails.interestRate / 100);
+          const totalRepayable = data.loanDetails.principal + totalInterest;
           const outstanding = totalRepayable - totalPaid;
 
           const newPrincipal = outstanding + newAmount;
@@ -1327,6 +1388,16 @@ document.addEventListener("DOMContentLoaded", () => {
           ? e.target.files[0].name
           : "No file chosen";
         getEl("file-name-display").textContent = fileName;
+      } else if (e.target.classList.contains("file-input")) {
+        const label = e.target.nextElementSibling; // Get the label
+        const labelSpan = label.querySelector("span");
+        const fileName =
+          e.target.files.length > 0
+            ? e.target.files[0].name
+            : "Choose a file...";
+        if (labelSpan) {
+          labelSpan.textContent = fileName;
+        }
       }
     });
     document.body.addEventListener("input", (e) => {

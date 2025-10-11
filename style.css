@@ -1060,6 +1060,52 @@ html[data-theme="dark"] select.form-control {
 textarea.form-control {
   min-height: 80px;
 }
+/* --- NEW --- Custom File Input Styling */
+.file-input-wrapper {
+  position: relative;
+  width: 100%;
+  height: 48px; /* Match form-control height */
+}
+.file-input {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+.file-input-label {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--bg-main);
+  color: var(--text-gray);
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.file-input:focus + .file-input-label,
+.file-input-label:hover {
+  border-color: var(--primary);
+}
+.file-input:focus + .file-input-label {
+  box-shadow: 0 0 0 3px var(--primary-t-08);
+}
+.file-input-label i {
+  font-size: 1.2rem;
+  margin-right: 0.75rem;
+  color: var(--primary);
+}
+.file-input-label span {
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* --- END NEW --- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1384,6 +1430,7 @@ fieldset legend {
   gap: 0.75rem;
   background-color: var(--bg-main);
   flex-shrink: 0;
+  flex-wrap: wrap; /* Allow buttons to wrap on small screens */
 }
 .details-view-grid {
   display: grid;
@@ -2081,6 +2128,15 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
     margin-left: 30px;
     margin-top: -10px;
   }
+  /* --- NEW --- Modal footer responsive */
+  .modal-footer {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .modal-footer .btn {
+    width: 100%;
+  }
+  /* --- END NEW --- */
 }
 
 /* New, Better Payment Modal UI Styles */

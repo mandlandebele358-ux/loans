@@ -224,8 +224,8 @@
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label for="customer-mobile">Mobile Number</label>
-                  <input type="tel" id="customer-mobile" class="form-control" />
+                  <label for="customer-phone">Mobile Number</label>
+                  <input type="tel" id="customer-phone" class="form-control" />
                 </div>
                 <div class="form-group">
                   <label for="customer-whatsapp">WhatsApp Number</label>
@@ -253,43 +253,67 @@
               <div class="form-row">
                 <div class="form-group">
                   <label for="customer-aadhar-file">Aadhar Card</label>
-                  <input
-                    type="file"
-                    id="customer-aadhar-file"
-                    class="form-control"
-                    accept="application/pdf,image/*"
-                  />
+                  <div class="file-input-wrapper">
+                    <input
+                      type="file"
+                      id="customer-aadhar-file"
+                      class="file-input"
+                      accept="application/pdf,image/*"
+                    />
+                    <label for="customer-aadhar-file" class="file-input-label">
+                      <i class="fas fa-cloud-upload-alt"></i>
+                      <span>Choose a file...</span>
+                    </label>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label for="customer-pan-file">PAN Card</label>
-                  <input
-                    type="file"
-                    id="customer-pan-file"
-                    class="form-control"
-                    accept="application/pdf,image/*"
-                  />
+                  <div class="file-input-wrapper">
+                    <input
+                      type="file"
+                      id="customer-pan-file"
+                      class="file-input"
+                      accept="application/pdf,image/*"
+                    />
+                    <label for="customer-pan-file" class="file-input-label">
+                      <i class="fas fa-cloud-upload-alt"></i>
+                      <span>Choose a file...</span>
+                    </label>
+                  </div>
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label for="customer-pic-file">Client's Picture</label>
-                  <input
-                    type="file"
-                    id="customer-pic-file"
-                    class="form-control"
-                    accept="image/*"
-                  />
+                  <div class="file-input-wrapper">
+                    <input
+                      type="file"
+                      id="customer-pic-file"
+                      class="file-input"
+                      accept="image/*"
+                    />
+                    <label for="customer-pic-file" class="file-input-label">
+                      <i class="fas fa-cloud-upload-alt"></i>
+                      <span>Choose a file...</span>
+                    </label>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label for="customer-bank-file"
                     >Bank Details (e.g., Cheque)</label
                   >
-                  <input
-                    type="file"
-                    id="customer-bank-file"
-                    class="form-control"
-                    accept="application/pdf,image/*"
-                  />
+                  <div class="file-input-wrapper">
+                    <input
+                      type="file"
+                      id="customer-bank-file"
+                      class="file-input"
+                      accept="application/pdf,image/*"
+                    />
+                    <label for="customer-bank-file" class="file-input-label">
+                      <i class="fas fa-cloud-upload-alt"></i>
+                      <span>Choose a file...</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </fieldset>
@@ -309,7 +333,7 @@
                 <div class="form-row">
                   <div class="form-group">
                     <label for="interest-rate-modal"
-                      >Total Interest Rate (%)</label
+                      >Annual Interest Rate (%)</label
                     ><input
                       type="number"
                       id="interest-rate-modal"
@@ -504,7 +528,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label for="refinance-new-rate"
-                  >New Total Interest Rate (%)</label
+                  >New Annual Interest Rate (%)</label
                 >
                 <input
                   type="number"
@@ -624,7 +648,6 @@
 
     <script src="pdf-generator.js"></script>
 
-    <script src="pdf-generator.js"></script>
     <script src="script.js"></script>
     <script src="theme-switcher.js"></script>
   </body>
