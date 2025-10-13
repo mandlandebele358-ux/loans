@@ -104,6 +104,48 @@ document.addEventListener("DOMContentLoaded", () => {
   const formatCurrency = (amount) =>
     `₹${Math.round(Number(amount || 0)).toLocaleString("en-IN")}`;
 
+  const calculateInstallments = (startDateStr, endDateStr, frequency) => {
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    if (endDate <= startDate) {
+      throw new Error("End date must be after the start date.");
+    }
+
+    const diffTime = Math.abs(endDate - startDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    switch (frequency) {
+      case "daily":
+        return diffDays;
+      case "weekly":
+        if (diffDays < 7) {
+          throw new Error(
+            "For weekly loans, the duration must be at least 7 days."
+          );
+        }
+        return Math.ceil(diffDays / 7);
+      case "monthly":
+        let months;
+        months = (endDate.getFullYear() - startDate.getFullYear()) * 12;
+        months -= startDate.getMonth();
+        months += endDate.getMonth();
+        if (endDate.getDate() < startDate.getDate()) {
+          months--;
+        }
+        if (months <= 0) {
+          throw new Error(
+            "For monthly loans, the duration must be at least one month."
+          );
+        }
+        return months + 1;
+      default:
+        throw new Error("Invalid frequency selected.");
+    }
+  };
+
   const generateSimpleInterestSchedule = (p, r, n, startDate, frequency) => {
     const totalInterest = calculateTotalInterest({
       principal: p,
@@ -909,12 +951,14 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-id").value = "";
           getEl("customer-form-modal-title").textContent = "Add New Customer";
           const today = new Date().toISOString().split("T")[0];
-          getEl("loan-given-date").value = today;
+
           getEl("first-collection-date").value = today;
+
+          // Show all sections for new customer
+          getEl("personal-info-fields").style.display = "block";
+          getEl("kyc-info-fields").style.display = "block";
           getEl("loan-details-fields").style.display = "block";
-          getEl("loan-details-fields")
-            .querySelectorAll("input, select")
-            .forEach((el) => (el.disabled = false));
+
           document
             .querySelectorAll(".file-input-label span")
             .forEach((span) => {
@@ -932,15 +976,14 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-name").value = customer.name;
           getEl("customer-phone").value = customer.phone || "";
           getEl("customer-father-name").value = customer.fatherName || "";
-          getEl("customer-mother-name").value = customer.motherName || "";
+          getEl("customer-whatsapp").value = customer.whatsapp || "";
           getEl("customer-address").value = customer.address || "";
-          getEl("customer-form-modal").querySelectorAll(
-            "fieldset"
-          )[1].style.display = "none";
+
+          // Show personal and KYC, hide loan details
+          getEl("personal-info-fields").style.display = "block";
+          getEl("kyc-info-fields").style.display = "block";
           getEl("loan-details-fields").style.display = "none";
-          getEl("loan-details-fields")
-            .querySelectorAll("input, select")
-            .forEach((el) => (el.disabled = true));
+
           getEl("customer-form-modal-title").textContent = "Edit Customer Info";
           getEl("customer-details-modal").classList.remove("show");
           getEl("customer-form-modal").classList.add("show");
@@ -1106,52 +1149,83 @@ document.addEventListener("DOMContentLoaded", () => {
         const id = getEl("customer-id").value;
         const saveBtn = getEl("customer-modal-save");
         toggleButtonLoading(saveBtn, true, id ? "Updating..." : "Saving...");
+
         try {
+          // Prepare personal and KYC data
           const customerData = {
             name: getEl("customer-name").value,
             phone: getEl("customer-phone").value,
             fatherName: getEl("customer-father-name").value,
             address: getEl("customer-address").value,
+            whatsapp: getEl("customer-whatsapp").value,
           };
+
+          const uploadFile = async (fileInputId, fileType) => {
+            const file = getEl(fileInputId).files[0];
+            if (!file) return null;
+            const customerIdForPath = id || db.collection("customers").doc().id;
+            const filePath = `kyc/${currentUser.uid}/${customerIdForPath}/${fileType}-${file.name}`;
+            const snapshot = await storage.ref(filePath).put(file);
+            return await snapshot.ref.getDownloadURL();
+          };
+
+          toggleButtonLoading(saveBtn, true, "Uploading Files...");
+          const [aadharUrl, panUrl, picUrl, bankDetailsUrl] = await Promise.all(
+            [
+              uploadFile("customer-aadhar-file", "aadhar"),
+              uploadFile("customer-pan-file", "pan"),
+              uploadFile("customer-pic-file", "picture"),
+              uploadFile("customer-bank-file", "bank"),
+            ]
+          );
+
+          customerData.kycDocs = {
+            ...(aadharUrl && { aadharUrl }),
+            ...(panUrl && { panUrl }),
+            ...(picUrl && { picUrl }),
+            ...(bankDetailsUrl && { bankDetailsUrl }),
+          };
+
           if (id) {
-            await db.collection("customers").doc(id).update(customerData);
+            // This is an EDIT operation
+            const updatePayload = { ...customerData };
+            // Filter out null KYC doc URLs to avoid overwriting existing ones with null
+            Object.keys(updatePayload.kycDocs).forEach((key) => {
+              if (updatePayload.kycDocs[key] === null) {
+                delete updatePayload.kycDocs[key];
+              }
+            });
+            // Use dot notation for updating nested object fields
+            const finalUpdate = {
+              name: updatePayload.name,
+              phone: updatePayload.phone,
+              fatherName: updatePayload.fatherName,
+              address: updatePayload.address,
+              whatsapp: updatePayload.whatsapp,
+            };
+            if (aadharUrl) finalUpdate["kycDocs.aadharUrl"] = aadharUrl;
+            if (panUrl) finalUpdate["kycDocs.panUrl"] = panUrl;
+            if (picUrl) finalUpdate["kycDocs.picUrl"] = picUrl;
+            if (bankDetailsUrl)
+              finalUpdate["kycDocs.bankDetailsUrl"] = bankDetailsUrl;
+
+            await db.collection("customers").doc(id).update(finalUpdate);
             showToast(
               "success",
               "Customer Updated",
               "Details saved successfully."
             );
           } else {
-            const newCustomerRef = db.collection("customers").doc();
-            const customerId = newCustomerRef.id;
-            const uploadFile = async (fileInputId, fileType) => {
-              const file = getEl(fileInputId).files[0];
-              if (!file) return null;
-              const filePath = `kyc/${currentUser.uid}/${customerId}/${fileType}-${file.name}`;
-              const snapshot = await storage.ref(filePath).put(file);
-              return await snapshot.ref.getDownloadURL();
-            };
-            toggleButtonLoading(saveBtn, true, "Uploading Files...");
-            const [aadharUrl, panUrl, picUrl, bankDetailsUrl] =
-              await Promise.all([
-                uploadFile("customer-aadhar-file", "aadhar"),
-                uploadFile("customer-pan-file", "pan"),
-                uploadFile("customer-pic-file", "picture"),
-                uploadFile("customer-bank-file", "bank"),
-              ]);
-            customerData.kycDocs = {
-              ...(aadharUrl && { aadharUrl }),
-              ...(panUrl && { panUrl }),
-              ...(picUrl && { picUrl }),
-              ...(bankDetailsUrl && { bankDetailsUrl }),
-            };
-
+            // This is a NEW customer operation
             const p = parseFloat(getEl("principal-amount").value);
             const r = parseFloat(getEl("interest-rate-modal").value);
-            const n = parseInt(getEl("number-of-installments").value, 10);
             const freq = getEl("collection-frequency").value;
-            const givenDate = getEl("loan-given-date").value;
             const firstDate = getEl("first-collection-date").value;
-            if (isNaN(p) || isNaN(r) || isNaN(n) || !givenDate || !firstDate)
+            const endDate = getEl("loan-end-date").value;
+
+            const n = calculateInstallments(firstDate, endDate, freq);
+
+            if (isNaN(p) || isNaN(r) || isNaN(n) || !firstDate)
               throw new Error("Please fill all loan detail fields correctly.");
 
             customerData.loanDetails = {
@@ -1159,7 +1233,7 @@ document.addEventListener("DOMContentLoaded", () => {
               interestRate: r,
               installments: n,
               frequency: freq,
-              loanDate: givenDate,
+              loanDate: new Date().toISOString().split("T")[0],
               firstCollectionDate: firstDate,
               type: "simple_interest",
             };
@@ -1176,7 +1250,7 @@ document.addEventListener("DOMContentLoaded", () => {
             customerData.status = "active";
 
             toggleButtonLoading(saveBtn, true, "Saving Customer...");
-            await newCustomerRef.set(customerData);
+            await db.collection("customers").add(customerData);
             await logActivity("NEW_LOAN", {
               customerName: customerData.name,
               amount: p,
@@ -1276,27 +1350,32 @@ document.addEventListener("DOMContentLoaded", () => {
           const doc = await customerRef.get();
           if (!doc.exists) throw new Error("Customer not found");
           const data = doc.data();
+          const oldLoanDetails = data.loanDetails;
 
           const newAmount = parseFloat(getEl("refinance-new-amount").value);
-          const newRate = parseFloat(getEl("refinance-new-rate").value);
-          const newTenure = parseInt(getEl("refinance-new-tenure").value, 10);
 
-          const totalInterest = calculateTotalInterest(data.loanDetails);
+          const totalInterest = calculateTotalInterest(oldLoanDetails);
           const totalPaid = data.paymentSchedule.reduce(
             (sum, p) => sum + p.amountPaid,
             0
           );
-          const totalRepayable = data.loanDetails.principal + totalInterest;
+          const totalRepayable = oldLoanDetails.principal + totalInterest;
           const outstanding = totalRepayable - totalPaid;
 
           const newPrincipal = outstanding + newAmount;
           const newStartDate = new Date().toISOString().split("T")[0];
+
+          // Use details from the original loan
+          const newRate = oldLoanDetails.interestRate;
+          const newTenure = oldLoanDetails.installments;
+          const newFrequency = oldLoanDetails.frequency;
+
           const newSchedule = generateSimpleInterestSchedule(
             newPrincipal,
             newRate,
             newTenure,
             newStartDate,
-            "daily"
+            newFrequency
           );
 
           const history = data.history || [];
@@ -1312,7 +1391,7 @@ document.addEventListener("DOMContentLoaded", () => {
               principal: newPrincipal,
               interestRate: newRate,
               installments: newTenure,
-              frequency: "daily",
+              frequency: newFrequency,
               loanDate: newStartDate,
               firstCollectionDate: newStartDate,
               type: "simple_interest",

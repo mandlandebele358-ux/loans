@@ -211,7 +211,7 @@
         <div class="modal-body">
           <form id="customer-form">
             <input type="hidden" id="customer-id" />
-            <fieldset>
+            <fieldset id="personal-info-fields">
               <legend>Personal Information</legend>
               <div class="form-row">
                 <div class="form-group">
@@ -255,7 +255,7 @@
                 ></textarea>
               </div>
             </fieldset>
-            <fieldset>
+            <fieldset id="kyc-info-fields">
               <legend>KYC Documents</legend>
               <p class="setting-description" style="margin-bottom: 1.5rem">
                 Upload PDF or image files for KYC verification.
@@ -371,36 +371,24 @@
                 </div>
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="number-of-installments"
-                      >Number of Installments</label
-                    >
-                    <input
-                      type="number"
-                      id="number-of-installments"
+                    <label for="first-collection-date"
+                      >First Collection Date</label
+                    ><input
+                      type="date"
+                      id="first-collection-date"
                       class="form-control"
                       required
-                      min="1"
                     />
                   </div>
                   <div class="form-group">
-                    <label for="loan-given-date">Loan Given Date</label>
+                    <label for="loan-end-date">Loan End Date</label>
                     <input
                       type="date"
-                      id="loan-given-date"
+                      id="loan-end-date"
                       class="form-control"
                       required
                     />
                   </div>
-                </div>
-                <div class="form-group">
-                  <label for="first-collection-date"
-                    >First Collection Date</label
-                  ><input
-                    type="date"
-                    id="first-collection-date"
-                    class="form-control"
-                    required
-                  />
                 </div>
               </fieldset>
             </div>
@@ -535,40 +523,13 @@
                 value="0"
               />
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="refinance-new-rate"
-                  >New Monthly Interest Rate (%)</label
-                >
-                <input
-                  type="number"
-                  id="refinance-new-rate"
-                  class="form-control"
-                  required
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div class="form-group">
-                <label for="refinance-new-tenure"
-                  >New No. of Installments</label
-                >
-                <input
-                  type="number"
-                  id="refinance-new-tenure"
-                  class="form-control"
-                  required
-                  min="1"
-                />
-              </div>
-            </div>
-            <p class="setting-description">
-              The new loan will be a daily collection, simple interest loan
-              starting from today.
-            </p>
             <p class="summary-line">
               New Principal will be:
               <strong id="refinance-new-principal">₹0.00</strong>
+            </p>
+            <p class="setting-description">
+              The new loan will use the same interest rate, tenure, and
+              frequency as the original loan, starting from today.
             </p>
           </form>
         </div>
