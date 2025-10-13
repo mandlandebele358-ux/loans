@@ -122,9 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return diffDays;
       case "weekly":
         if (diffDays < 7) {
-          throw new Error(
-            "For weekly loans, the duration must be at least 7 days."
-          );
+          throw new Error("For weekly loans, the duration must be at least 7 days.");
         }
         return Math.ceil(diffDays / 7);
       case "monthly":
@@ -133,12 +131,10 @@ document.addEventListener("DOMContentLoaded", () => {
         months -= startDate.getMonth();
         months += endDate.getMonth();
         if (endDate.getDate() < startDate.getDate()) {
-          months--;
+            months--;
         }
         if (months <= 0) {
-          throw new Error(
-            "For monthly loans, the duration must be at least one month."
-          );
+            throw new Error("For monthly loans, the duration must be at least one month.");
         }
         return months + 1;
       default:
@@ -338,7 +334,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }</div></div></div><div class="dashboard-grid"><div class="form-card chart-card"><h3 >Portfolio Overview</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div><div class="form-card chart-card grid-col-span-2"><h3 >Profit Over Time <div class="chart-controls" id="profit-chart-controls"><button class="btn btn-sm btn-outline active" data-frame="monthly">Month</button><button class="btn btn-sm btn-outline" data-frame="yearly">Year</button></div></h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div><div class="form-card"><h3><i class="fas fa-clock" style="color:var(--primary)"></i> Upcoming Installments</h3><div id="upcoming-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Overdue Installments</h3><div id="overdue-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-history"></i> Recent Activity <button class="btn btn-danger btn-sm" id="clear-all-activities-btn" title="Clear all activities"><i class="fas fa-trash"></i></button></h3><div id="recent-activity-container" class="activity-container"></div></div></div>`;
     getEl(
       "calculator-section"
-    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row"><div class="form-group"><label for="calc-rate">Monthly Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="calc-tenure">Number of Installments (in Months)</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 1" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
+    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;"><div class="form-group"><label for="calc-rate">Monthly Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="collection-frequency-calc">Collection Frequency</label><select id="collection-frequency-calc" class="form-control" required><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly" selected>Monthly</option></select></div><div class="form-group"><label for="calc-tenure">Number of Installments</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 12" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
     getEl("settings-section").innerHTML = `<div class="settings-grid">
         <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-shield-alt"></i><h3>Security</h3></div><div class="setting-card-body"><p class="setting-description">Manage your account security settings.</p><form id="change-password-form"><div class="form-group"><label for="current-password">Current Password</label><input type="password" id="current-password" class="form-control" required/></div><div class="form-row"><div class="form-group"><label for="new-password">New Password</label><input type="password" id="new-password" class="form-control" required/></div><div class="form-group"><label for="confirm-password">Confirm New Password</label><input type="password" id="confirm-password" class="form-control" required/></div></div><button id="change-password-btn" type="submit" class="btn btn-primary"><span class="loading-spinner hidden"></span><span>Update Password</span></button></form></div></div>
         <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-palette"></i><h3>Appearance</h3></div><div class="setting-card-body"><p class="setting-description">Customize the look and feel of the application.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-moon"></i><span>Dark Mode</span></div><div class="setting-control"><label class="switch"><input type="checkbox" id="dark-mode-toggle" /><span class="slider round"></span></label></div></div></div></div>
@@ -951,9 +947,9 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-id").value = "";
           getEl("customer-form-modal-title").textContent = "Add New Customer";
           const today = new Date().toISOString().split("T")[0];
-
+          
           getEl("first-collection-date").value = today;
-
+          
           // Show all sections for new customer
           getEl("personal-info-fields").style.display = "block";
           getEl("kyc-info-fields").style.display = "block";
@@ -978,7 +974,7 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-father-name").value = customer.fatherName || "";
           getEl("customer-whatsapp").value = customer.whatsapp || "";
           getEl("customer-address").value = customer.address || "";
-
+          
           // Show personal and KYC, hide loan details
           getEl("personal-info-fields").style.display = "block";
           getEl("kyc-info-fields").style.display = "block";
@@ -1149,7 +1145,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const id = getEl("customer-id").value;
         const saveBtn = getEl("customer-modal-save");
         toggleButtonLoading(saveBtn, true, id ? "Updating..." : "Saving...");
-
+        
         try {
           // Prepare personal and KYC data
           const customerData = {
@@ -1170,53 +1166,44 @@ document.addEventListener("DOMContentLoaded", () => {
           };
 
           toggleButtonLoading(saveBtn, true, "Uploading Files...");
-          const [aadharUrl, panUrl, picUrl, bankDetailsUrl] = await Promise.all(
-            [
-              uploadFile("customer-aadhar-file", "aadhar"),
-              uploadFile("customer-pan-file", "pan"),
-              uploadFile("customer-pic-file", "picture"),
-              uploadFile("customer-bank-file", "bank"),
-            ]
-          );
-
+          const [aadharUrl, panUrl, picUrl, bankDetailsUrl] = await Promise.all([
+            uploadFile("customer-aadhar-file", "aadhar"),
+            uploadFile("customer-pan-file", "pan"),
+            uploadFile("customer-pic-file", "picture"),
+            uploadFile("customer-bank-file", "bank"),
+          ]);
+            
           customerData.kycDocs = {
             ...(aadharUrl && { aadharUrl }),
             ...(panUrl && { panUrl }),
             ...(picUrl && { picUrl }),
             ...(bankDetailsUrl && { bankDetailsUrl }),
           };
-
-          if (id) {
-            // This is an EDIT operation
+          
+          if (id) { // This is an EDIT operation
             const updatePayload = { ...customerData };
             // Filter out null KYC doc URLs to avoid overwriting existing ones with null
-            Object.keys(updatePayload.kycDocs).forEach((key) => {
-              if (updatePayload.kycDocs[key] === null) {
-                delete updatePayload.kycDocs[key];
-              }
+            Object.keys(updatePayload.kycDocs).forEach(key => {
+                if (updatePayload.kycDocs[key] === null) {
+                    delete updatePayload.kycDocs[key];
+                }
             });
             // Use dot notation for updating nested object fields
             const finalUpdate = {
-              name: updatePayload.name,
-              phone: updatePayload.phone,
-              fatherName: updatePayload.fatherName,
-              address: updatePayload.address,
-              whatsapp: updatePayload.whatsapp,
+                'name': updatePayload.name,
+                'phone': updatePayload.phone,
+                'fatherName': updatePayload.fatherName,
+                'address': updatePayload.address,
+                'whatsapp': updatePayload.whatsapp,
             };
-            if (aadharUrl) finalUpdate["kycDocs.aadharUrl"] = aadharUrl;
-            if (panUrl) finalUpdate["kycDocs.panUrl"] = panUrl;
-            if (picUrl) finalUpdate["kycDocs.picUrl"] = picUrl;
-            if (bankDetailsUrl)
-              finalUpdate["kycDocs.bankDetailsUrl"] = bankDetailsUrl;
+            if (aadharUrl) finalUpdate['kycDocs.aadharUrl'] = aadharUrl;
+            if (panUrl) finalUpdate['kycDocs.panUrl'] = panUrl;
+            if (picUrl) finalUpdate['kycDocs.picUrl'] = picUrl;
+            if (bankDetailsUrl) finalUpdate['kycDocs.bankDetailsUrl'] = bankDetailsUrl;
 
             await db.collection("customers").doc(id).update(finalUpdate);
-            showToast(
-              "success",
-              "Customer Updated",
-              "Details saved successfully."
-            );
-          } else {
-            // This is a NEW customer operation
+            showToast("success", "Customer Updated", "Details saved successfully.");
+          } else { // This is a NEW customer operation
             const p = parseFloat(getEl("principal-amount").value);
             const r = parseFloat(getEl("interest-rate-modal").value);
             const freq = getEl("collection-frequency").value;
@@ -1325,15 +1312,23 @@ document.addEventListener("DOMContentLoaded", () => {
           toggleButtonLoading(btn, false);
         }
       } else if (form.id === "emi-calculator-form") {
-        const p = parseFloat(getEl("calc-principal").value),
-          r = parseFloat(getEl("calc-rate").value), // monthly rate
-          n = parseInt(getEl("calc-tenure").value, 10); // months
+        const p = parseFloat(getEl("calc-principal").value);
+        const r = parseFloat(getEl("calc-rate").value);
+        const n = parseInt(getEl("calc-tenure").value, 10);
+        const freq = getEl("collection-frequency-calc").value;
+
         if (isNaN(p) || isNaN(r) || isNaN(n) || n <= 0) {
           showToast("error", "Invalid Input", "Please enter valid numbers.");
           return;
         }
 
-        const totalInterest = p * (r / 100) * n;
+        const totalInterest = calculateTotalInterest({
+            principal: p,
+            interestRate: r,
+            installments: n,
+            frequency: freq,
+        });
+
         const totalPayment = p + totalInterest;
         const perInstallment = totalPayment / n;
 
@@ -1364,7 +1359,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const newPrincipal = outstanding + newAmount;
           const newStartDate = new Date().toISOString().split("T")[0];
-
+          
           // Use details from the original loan
           const newRate = oldLoanDetails.interestRate;
           const newTenure = oldLoanDetails.installments;
