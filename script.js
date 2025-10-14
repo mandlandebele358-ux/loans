@@ -603,47 +603,43 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const showCustomerDetails = (customerId) => {
-    const customer = [
-      ...window.allCustomers.active,
-      ...window.allCustomers.settled,
-    ].find((c) => c.id === customerId);
+    const customer = [...window.allCustomers.active, ...window.allCustomers.settled].find((c) => c.id === customerId);
     if (!customer) return;
 
-    const allLoansForCustomer = [
-      ...window.allCustomers.active,
-      ...window.allCustomers.settled,
-    ]
-      .filter((c) => c.name === customer.name)
-      .sort((a, b) => (a.financeCount || 1) - (b.financeCount || 1));
+    const allLoansForCustomer = [...window.allCustomers.active, ...window.allCustomers.settled]
+        .filter((c) => c.name === customer.name)
+        .sort((a, b) => (a.financeCount || 1) - (b.financeCount || 1));
 
-    // Use a Set to ensure unique loans are displayed to prevent bugs
-    const uniqueLoans = [
-      ...new Map(allLoansForCustomer.map((item) => [item.id, item])).values(),
-    ];
+    const uniqueLoans = [...new Map(allLoansForCustomer.map(item => [item.id, item])).values()];
+
+    // *** NEW LOGIC TO FIX THE DUPLICATE DISPLAY ***
+    const optionsMap = new Map();
+    uniqueLoans.forEach(loan => {
+        const label = `Finance ${loan.financeCount || 1}`;
+        // This logic ensures that for any given "Finance X", we prioritize showing the active one,
+        // or the one currently being viewed. This cleans up duplicates from the display.
+        if (!optionsMap.has(label) || loan.status === 'active' || loan.id === customerId) {
+            optionsMap.set(label, loan);
+        }
+    });
+    const loansToDisplay = Array.from(optionsMap.values()).sort((a,b) => (a.financeCount || 1) - (b.financeCount || 1));
 
     const switcherContainer = getEl("loan-switcher-container");
-    const customSelect = switcherContainer.querySelector(".custom-select");
-    const optionsContainer = customSelect.querySelector(".custom-options");
-    const triggerText = customSelect.querySelector(
-      ".custom-select-trigger span"
-    );
+    const customSelect = switcherContainer.querySelector('.custom-select');
+    const optionsContainer = customSelect.querySelector('.custom-options');
+    const triggerText = customSelect.querySelector('.custom-select-trigger span');
 
-    if (uniqueLoans.length > 1) {
-      switcherContainer.classList.remove("hidden");
-      optionsContainer.innerHTML = uniqueLoans
-        .map(
-          (loan) =>
-            `<div class="custom-option ${
-              loan.id === customerId ? "selected" : ""
-            }" data-value="${loan.id}">
+    if (loansToDisplay.length > 1) { 
+        switcherContainer.classList.remove("hidden");
+        optionsContainer.innerHTML = loansToDisplay.map(loan =>
+            `<div class="custom-option ${loan.id === customerId ? 'selected' : ''}" data-value="${loan.id}">
                 Finance ${loan.financeCount || 1}
             </div>`
-        )
-        .join("");
-      const currentLoan = uniqueLoans.find((l) => l.id === customerId);
-      triggerText.textContent = `Finance ${currentLoan.financeCount || 1}`;
+        ).join('');
+        const currentLoan = loansToDisplay.find(l => l.id === customerId) || customer;
+        triggerText.textContent = `Finance ${currentLoan.financeCount || 1}`;
     } else {
-      switcherContainer.classList.add("hidden");
+        switcherContainer.classList.add("hidden");
     }
 
     renderLoanDetails(customerId);
@@ -651,10 +647,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const renderLoanDetails = (customerId) => {
-    const customer = [
-      ...window.allCustomers.active,
-      ...window.allCustomers.settled,
-    ].find((c) => c.id === customerId);
+    const customer = [...window.allCustomers.active, ...window.allCustomers.settled].find((c) => c.id === customerId);
     if (!customer) return;
 
     const modalBody = getEl("details-modal-body");
@@ -695,13 +688,14 @@ document.addEventListener("DOMContentLoaded", () => {
     )[0];
 
     // Show refinance/settle buttons only if the loan is active
-    let actionButtons = "";
-    if (customer.status === "active") {
-      if (!latestLoan || customer.id === latestLoan.id) {
-        actionButtons += `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`;
-      }
-      actionButtons += `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`;
+    let actionButtons = '';
+    if (customer.status === 'active') {
+        if (!latestLoan || customer.id === latestLoan.id) {
+             actionButtons += `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`;
+        }
+        actionButtons += `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`;
     }
+
 
     const hasHistory = customer.history && customer.history.length > 0;
     const historyButton = `<button class="btn btn-outline" id="view-history-btn" data-id="${
@@ -785,6 +779,28 @@ document.addEventListener("DOMContentLoaded", () => {
       emiTableBody.appendChild(tr);
     });
   };
+  
+  // --- Reusable function to settle a loan by its ID ---
+  async function settleLoanById(loanId) {
+    const customerToSettle = window.allCustomers.active.find(c => c.id === loanId);
+    if (!customerToSettle) {
+        showToast("error", "Not Found", "The selected loan could not be found.");
+        return;
+    }
+    try {
+        await db.collection("customers").doc(loanId).update({ status: "settled" });
+        await logActivity("LOAN_SETTLED", {
+            customerName: customerToSettle.name,
+        });
+        showToast("success", "Loan Settled", `Finance ${customerToSettle.financeCount || 1} moved to settled.`);
+        getEl("customer-details-modal").classList.remove("show");
+        getEl("settle-selection-modal").classList.remove("show"); // Ensure selection modal is hidden
+        await loadAndRenderAll();
+    } catch (error) {
+        showToast("error", "Settle Failed", error.message);
+    }
+  }
+
 
   auth.onAuthStateChanged(async (user) => {
     currentUser = user;
@@ -905,35 +921,31 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.body.addEventListener("click", async (e) => {
-      const target = e.target;
-      const button = target.closest("button");
+        const target = e.target;
+        const button = target.closest("button");
+        
+        // Custom Select Logic
+        const customSelect = target.closest('.custom-select');
+        if (customSelect && !target.closest('.custom-option')) {
+            customSelect.classList.toggle('open');
+        } else if (!target.closest('.custom-select-wrapper')) {
+            document.querySelectorAll('.custom-select.open').forEach(select => select.classList.remove('open'));
+        }
 
-      // Custom Select Logic
-      const customSelect = target.closest(".custom-select");
-      if (customSelect) {
-        customSelect.classList.toggle("open");
-      } else if (!target.closest(".custom-select-wrapper")) {
-        document
-          .querySelectorAll(".custom-select.open")
-          .forEach((select) => select.classList.remove("open"));
-      }
-
-      const customOption = target.closest(".custom-option");
-      if (customOption) {
-        const selectWrapper = target.closest(".custom-select-wrapper");
-        const triggerText = selectWrapper.querySelector(
-          ".custom-select-trigger span"
-        );
-        triggerText.textContent = customOption.textContent.trim();
-        selectWrapper.querySelector(".custom-select").classList.remove("open");
-
-        // Remove selected class from sibling
-        const options = selectWrapper.querySelectorAll(".custom-option");
-        options.forEach((opt) => opt.classList.remove("selected"));
-        customOption.classList.add("selected");
-
-        renderLoanDetails(customOption.dataset.value);
-      }
+        const customOption = target.closest('.custom-option');
+        if (customOption) {
+            const selectWrapper = target.closest('.custom-select-wrapper');
+            const triggerText = selectWrapper.querySelector('.custom-select-trigger span');
+            triggerText.textContent = customOption.textContent.trim();
+            selectWrapper.querySelector('.custom-select').classList.remove('open');
+            
+            // Remove selected class from sibling
+            const options = selectWrapper.querySelectorAll('.custom-option');
+            options.forEach(opt => opt.classList.remove('selected'));
+            customOption.classList.add('selected');
+            
+            renderLoanDetails(customOption.dataset.value);
+        }
 
       if (target.id === "forgot-password-link") {
         e.preventDefault();
@@ -1229,34 +1241,47 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-details-modal").classList.remove("show");
           getEl("customer-form-modal").classList.add("show");
         } else if (button.id === "settle-loan-btn") {
-          const customer = window.allCustomers.active.find(
-            (c) => c.id === button.dataset.id
-          );
-          if (!customer) return;
-          showConfirmation(
-            "Settle Loan?",
-            "This will move the account to 'Settled'. Are you sure?",
-            async () => {
-              try {
-                await db
-                  .collection("customers")
-                  .doc(button.dataset.id)
-                  .update({ status: "settled" });
-                await logActivity("LOAN_SETTLED", {
-                  customerName: customer.name,
-                });
-                showToast(
-                  "success",
-                  "Loan Settled",
-                  "Account moved to settled."
+            const currentLoanId = button.dataset.id;
+            const currentCustomer = window.allCustomers.active.find(c => c.id === currentLoanId);
+            if (!currentCustomer) return;
+
+            // Find all active loans for this customer by name
+            const allActiveLoansForCustomer = window.allCustomers.active.filter(
+                c => c.name === currentCustomer.name
+            );
+
+            if (allActiveLoansForCustomer.length <= 1) {
+                // Only one loan, use the simple confirmation
+                showConfirmation(
+                    `Settle Loan?`,
+                    `This will move Finance ${currentCustomer.financeCount || 1} to the 'Settled' list. Are you sure?`,
+                    () => {
+                        settleLoanById(currentLoanId);
+                    }
                 );
-                getEl("customer-details-modal").classList.remove("show");
-                await loadAndRenderAll();
-              } catch (error) {
-                showToast("error", "Settle Failed", error.message);
-              }
+            } else {
+                // Multiple loans, show the selection modal
+                const optionsContainer = getEl("settle-options-container");
+                optionsContainer.innerHTML = allActiveLoansForCustomer.map(loan => `
+                    <div class="selection-item">
+                        <input type="radio" name="settle-loan" id="settle-${loan.id}" value="${loan.id}" ${loan.id === currentLoanId ? 'checked' : ''}>
+                        <label for="settle-${loan.id}">
+                            Finance ${loan.financeCount || 1}
+                            <span>Principal: ${formatCurrency(loan.loanDetails.principal)} / Due: ${formatCurrency(loan.paymentSchedule[0]?.amountDue)}</span>
+                        </label>
+                    </div>
+                `).join('');
+                
+                getEl("settle-selection-modal").classList.add("show");
             }
-          );
+        } else if (button.id === "settle-confirm-btn") {
+            const selectedRadio = document.querySelector('input[name="settle-loan"]:checked');
+            if (selectedRadio) {
+                const loanIdToSettle = selectedRadio.value;
+                settleLoanById(loanIdToSettle);
+            } else {
+                showToast('error', 'No Selection', 'Please select a loan to settle.');
+            }
         } else if (button.id === "refinance-loan-btn") {
           const customer = window.allCustomers.active.find(
             (c) => c.id === button.dataset.id

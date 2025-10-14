@@ -2430,3 +2430,57 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
   color: white;
   font-weight: 600;
 }
+/* Add these new styles to the end of your style.css file */
+
+/* Settle Selection Modal Styles */
+.selection-list {
+    margin-top: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.selection-item {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: background-color 0.2s;
+}
+
+.selection-item:hover {
+    background-color: var(--bg-main);
+}
+
+.selection-item:last-child {
+    border-bottom: none;
+}
+
+.selection-item input[type="radio"] {
+    accent-color: var(--primary);
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.selection-item label {
+    flex-grow: 1;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.selection-item label span {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-gray);
+    font-weight: 400;
+    margin-top: 2px;
+}
+
+/* Modal max-widths for new modals */
+#settle-selection-modal .modal-content {
+    max-width: 500px;
+}

@@ -29,7 +29,7 @@
       <div class="auth-card">
         <div class="auth-panel auth-panel-branding">
           <div class="auth-logo"><i class="fas fa-globe"></i></div>
-          <h2 class="branding-title">GF Consultant</h2>
+          <h2 class="branding-title">Global Finance Consultant</h2>
           <p class="branding-subtitle">
             Streamline your lending operations with precision and ease.
           </p>
@@ -91,7 +91,7 @@
         <div class="sidebar-header">
           <h2 class="ola">
             <i class="fas fa-globe"></i>
-            <span class="sidebar-brand-full">GF Consultant</span>
+            <span class="sidebar-brand-full">Global Finance Consultant</span>
             <span class="sidebar-brand-short">GFC</span>
           </h2>
         </div>
@@ -668,13 +668,35 @@
       </div>
     </div>
 
+    <div class="modal" id="settle-selection-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Select Loan to Settle</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            This customer has multiple active loans. Please select which one you
+            would like to settle.
+          </p>
+          <div id="settle-options-container" class="selection-list"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal>
+            Cancel
+          </button>
+          <button type="button" class="btn btn-success" id="settle-confirm-btn">
+            Settle Selected
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div id="toast-container"></div>
 
     <script src="excel.js"></script>
     <script src="graph.js"></script>
-
     <script src="pdf-generator.js"></script>
-
     <script src="script.js"></script>
     <script src="theme-switcher.js"></script>
   </body>
