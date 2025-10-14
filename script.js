@@ -38,6 +38,50 @@ const calculateTotalInterest = (loanDetails) => {
   return totalInterest;
 };
 
+// Moved to global scope to be accessible everywhere
+const formatCurrency = (amount) =>
+  `₹${Math.round(Number(amount || 0)).toLocaleString("en-IN")}`;
+
+const openWhatsApp = (customer) => {
+  if (!customer || (!customer.whatsapp && !customer.phone)) {
+    alert("Customer's WhatsApp number is not available.");
+    return;
+  }
+
+  let phone = (customer.whatsapp || customer.phone).replace(/\D/g, "");
+  if (phone.length === 10) {
+    phone = "91" + phone; // Assuming Indian numbers
+  }
+
+  const { loanDetails, paymentSchedule, name } = customer;
+  const totalPaid = paymentSchedule.reduce((sum, p) => sum + p.amountPaid, 0);
+  const totalInterest = calculateTotalInterest(loanDetails);
+  const totalRepayable = loanDetails.principal + totalInterest;
+  const outstanding = totalRepayable - totalPaid;
+  const nextDue = paymentSchedule.find(
+    (p) => p.status === "Due" || p.status === "Pending"
+  );
+
+  let message = `Hello ${name},\n\nHere is a summary of your loan with Global Finance Consultant:\n\n`;
+  message += `*Principal:* ${formatCurrency(loanDetails.principal)}\n`;
+  message += `*Total Paid:* ${formatCurrency(totalPaid)}\n`;
+  message += `*Outstanding Balance:* ${formatCurrency(outstanding)}\n\n`;
+
+  if (nextDue) {
+    message += `*Next Payment Due:* ${formatCurrency(
+      nextDue.pendingAmount
+    )} on ${nextDue.dueDate}.\n\n`;
+  } else {
+    message += `Your loan has been fully paid. Thank you!\n\n`;
+  }
+  message += `Thank you.`;
+
+  const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(
+    message
+  )}`;
+  window.open(whatsappUrl, "_blank");
+};
+
 window.processProfitData = (allCusts) => {
   const data = [];
   const today = new Date();
@@ -101,8 +145,6 @@ document.addEventListener("DOMContentLoaded", () => {
       btnText.textContent = isLoading ? text : btnText.dataset.originalText;
     }
   };
-  const formatCurrency = (amount) =>
-    `₹${Math.round(Number(amount || 0)).toLocaleString("en-IN")}`;
 
   const calculateInstallments = (startDateStr, endDateStr, frequency) => {
     const startDate = new Date(startDateStr);
@@ -122,7 +164,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return diffDays;
       case "weekly":
         if (diffDays < 7) {
-          throw new Error("For weekly loans, the duration must be at least 7 days.");
+          throw new Error(
+            "For weekly loans, the duration must be at least 7 days."
+          );
         }
         return Math.ceil(diffDays / 7);
       case "monthly":
@@ -131,10 +175,12 @@ document.addEventListener("DOMContentLoaded", () => {
         months -= startDate.getMonth();
         months += endDate.getMonth();
         if (endDate.getDate() < startDate.getDate()) {
-            months--;
+          months--;
         }
         if (months <= 0) {
-            throw new Error("For monthly loans, the duration must be at least one month.");
+          throw new Error(
+            "For monthly loans, the duration must be at least one month."
+          );
         }
         return months + 1;
       default:
@@ -704,6 +750,45 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  function updateInstallmentPreview() {
+    const previewDiv = getEl("installment-preview");
+    const p = parseFloat(getEl("principal-amount").value);
+    const r = parseFloat(getEl("interest-rate-modal").value);
+    const freq = getEl("collection-frequency").value;
+    const firstDate = getEl("first-collection-date").value;
+    const endDate = getEl("loan-end-date").value;
+
+    if (!p || !r || !firstDate || !endDate) {
+      previewDiv.classList.add("hidden");
+      return;
+    }
+
+    try {
+      const n = calculateInstallments(firstDate, endDate, freq);
+      if (n <= 0) {
+        throw new Error("Invalid date range for the selected frequency.");
+      }
+      const totalInterest = calculateTotalInterest({
+        principal: p,
+        interestRate: r,
+        installments: n,
+        frequency: freq,
+      });
+      const totalRepayable = p + totalInterest;
+      const installmentAmount = totalRepayable / n;
+
+      previewDiv.innerHTML = `<p>Calculated: <strong>${n} installments</strong> of <strong>${formatCurrency(
+        installmentAmount
+      )}</strong> each.</p>`;
+      previewDiv.classList.remove("error");
+      previewDiv.classList.remove("hidden");
+    } catch (error) {
+      previewDiv.innerHTML = `<p>${error.message}</p>`;
+      previewDiv.classList.add("error");
+      previewDiv.classList.remove("hidden");
+    }
+  }
+
   function initializeEventListeners() {
     getEl("login-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -947,13 +1032,14 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-id").value = "";
           getEl("customer-form-modal-title").textContent = "Add New Customer";
           const today = new Date().toISOString().split("T")[0];
-          
+
           getEl("first-collection-date").value = today;
-          
+
           // Show all sections for new customer
           getEl("personal-info-fields").style.display = "block";
           getEl("kyc-info-fields").style.display = "block";
           getEl("loan-details-fields").style.display = "block";
+          getEl("installment-preview").classList.add("hidden");
 
           document
             .querySelectorAll(".file-input-label span")
@@ -974,11 +1060,12 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-father-name").value = customer.fatherName || "";
           getEl("customer-whatsapp").value = customer.whatsapp || "";
           getEl("customer-address").value = customer.address || "";
-          
+
           // Show personal and KYC, hide loan details
           getEl("personal-info-fields").style.display = "block";
           getEl("kyc-info-fields").style.display = "block";
           getEl("loan-details-fields").style.display = "none";
+          getEl("installment-preview").classList.add("hidden");
 
           getEl("customer-form-modal-title").textContent = "Edit Customer Info";
           getEl("customer-details-modal").classList.remove("show");
@@ -1145,7 +1232,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const id = getEl("customer-id").value;
         const saveBtn = getEl("customer-modal-save");
         toggleButtonLoading(saveBtn, true, id ? "Updating..." : "Saving...");
-        
+
         try {
           // Prepare personal and KYC data
           const customerData = {
@@ -1166,44 +1253,53 @@ document.addEventListener("DOMContentLoaded", () => {
           };
 
           toggleButtonLoading(saveBtn, true, "Uploading Files...");
-          const [aadharUrl, panUrl, picUrl, bankDetailsUrl] = await Promise.all([
-            uploadFile("customer-aadhar-file", "aadhar"),
-            uploadFile("customer-pan-file", "pan"),
-            uploadFile("customer-pic-file", "picture"),
-            uploadFile("customer-bank-file", "bank"),
-          ]);
-            
+          const [aadharUrl, panUrl, picUrl, bankDetailsUrl] = await Promise.all(
+            [
+              uploadFile("customer-aadhar-file", "aadhar"),
+              uploadFile("customer-pan-file", "pan"),
+              uploadFile("customer-pic-file", "picture"),
+              uploadFile("customer-bank-file", "bank"),
+            ]
+          );
+
           customerData.kycDocs = {
             ...(aadharUrl && { aadharUrl }),
             ...(panUrl && { panUrl }),
             ...(picUrl && { picUrl }),
             ...(bankDetailsUrl && { bankDetailsUrl }),
           };
-          
-          if (id) { // This is an EDIT operation
+
+          if (id) {
+            // This is an EDIT operation
             const updatePayload = { ...customerData };
             // Filter out null KYC doc URLs to avoid overwriting existing ones with null
-            Object.keys(updatePayload.kycDocs).forEach(key => {
-                if (updatePayload.kycDocs[key] === null) {
-                    delete updatePayload.kycDocs[key];
-                }
+            Object.keys(updatePayload.kycDocs).forEach((key) => {
+              if (updatePayload.kycDocs[key] === null) {
+                delete updatePayload.kycDocs[key];
+              }
             });
             // Use dot notation for updating nested object fields
             const finalUpdate = {
-                'name': updatePayload.name,
-                'phone': updatePayload.phone,
-                'fatherName': updatePayload.fatherName,
-                'address': updatePayload.address,
-                'whatsapp': updatePayload.whatsapp,
+              name: updatePayload.name,
+              phone: updatePayload.phone,
+              fatherName: updatePayload.fatherName,
+              address: updatePayload.address,
+              whatsapp: updatePayload.whatsapp,
             };
-            if (aadharUrl) finalUpdate['kycDocs.aadharUrl'] = aadharUrl;
-            if (panUrl) finalUpdate['kycDocs.panUrl'] = panUrl;
-            if (picUrl) finalUpdate['kycDocs.picUrl'] = picUrl;
-            if (bankDetailsUrl) finalUpdate['kycDocs.bankDetailsUrl'] = bankDetailsUrl;
+            if (aadharUrl) finalUpdate["kycDocs.aadharUrl"] = aadharUrl;
+            if (panUrl) finalUpdate["kycDocs.panUrl"] = panUrl;
+            if (picUrl) finalUpdate["kycDocs.picUrl"] = picUrl;
+            if (bankDetailsUrl)
+              finalUpdate["kycDocs.bankDetailsUrl"] = bankDetailsUrl;
 
             await db.collection("customers").doc(id).update(finalUpdate);
-            showToast("success", "Customer Updated", "Details saved successfully.");
-          } else { // This is a NEW customer operation
+            showToast(
+              "success",
+              "Customer Updated",
+              "Details saved successfully."
+            );
+          } else {
+            // This is a NEW customer operation
             const p = parseFloat(getEl("principal-amount").value);
             const r = parseFloat(getEl("interest-rate-modal").value);
             const freq = getEl("collection-frequency").value;
@@ -1323,10 +1419,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const totalInterest = calculateTotalInterest({
-            principal: p,
-            interestRate: r,
-            installments: n,
-            frequency: freq,
+          principal: p,
+          interestRate: r,
+          installments: n,
+          frequency: freq,
         });
 
         const totalPayment = p + totalInterest;
@@ -1359,7 +1455,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const newPrincipal = outstanding + newAmount;
           const newStartDate = new Date().toISOString().split("T")[0];
-          
+
           // Use details from the original loan
           const newRate = oldLoanDetails.interestRate;
           const newTenure = oldLoanDetails.installments;
@@ -1449,6 +1545,21 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     });
+
+    const loanDetailFields = [
+      "principal-amount",
+      "interest-rate-modal",
+      "collection-frequency",
+      "first-collection-date",
+      "loan-end-date",
+    ];
+    loanDetailFields.forEach((id) => {
+      const element = getEl(id);
+      if (element) {
+        element.addEventListener("input", updateInstallmentPreview);
+      }
+    });
+
     document.body.addEventListener("change", (e) => {
       if (e.target.id === "dark-mode-toggle") {
         if (window.toggleDarkMode) window.toggleDarkMode();

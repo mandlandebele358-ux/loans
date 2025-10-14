@@ -24,15 +24,11 @@ async function generateAndDownloadPDF(customerId) {
   const formatCurrency = (amount) =>
     `Rs. ${Math.round(Number(amount || 0)).toLocaleString("en-IN")}`;
 
-  const totalPaid = paymentSchedule.reduce(
-    (sum, p) => sum + p.amountPaid,
-    0
-  );
-  const totalRepayable =
-    loanDetails.principal * (1 + loanDetails.interestRate / 100);
+  const totalPaid = paymentSchedule.reduce((sum, p) => sum + p.amountPaid, 0);
+
+  const totalInterestPayable = calculateTotalInterest(loanDetails);
+  const totalRepayable = loanDetails.principal + totalInterestPayable;
   const outstanding = totalRepayable - totalPaid;
-  const totalInterest =
-    loanDetails.principal * (loanDetails.interestRate / 100);
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({
@@ -47,12 +43,12 @@ async function generateAndDownloadPDF(customerId) {
   const mutedColor = "#718096";
   const borderColor = "#e2e8f0";
   const backgroundColor = "#f8fafc";
-  
-  const paidBgColor = "#dcfce7";      // Paid: Fresh, light green background
-  const paidTextColor = "#166534";   // Paid: Dark, rich green text
-  const pendingBgColor = "#fef3c7";   // Pending: Warning-type yellow background
+
+  const paidBgColor = "#dcfce7"; // Paid: Fresh, light green background
+  const paidTextColor = "#166534"; // Paid: Dark, rich green text
+  const pendingBgColor = "#fef3c7"; // Pending: Warning-type yellow background
   const pendingTextColor = "#92400e"; // Pending: Dark amber text
-  const dueTextColor = "#b91c1c";     // Due: Normal background, but bold red text
+  const dueTextColor = "#b91c1c"; // Due: Normal background, but bold red text
 
   doc.setFont("helvetica", "normal");
 
@@ -69,7 +65,7 @@ async function generateAndDownloadPDF(customerId) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(mutedColor);
-  doc.text("Your Trusted Lending Partner", pageWidth / 2, y, {
+  doc.text("Global Finance Consultant", pageWidth / 2, y, {
     align: "center",
   });
   y += 15;
@@ -86,8 +82,8 @@ async function generateAndDownloadPDF(customerId) {
 
   const rowHeight = 18;
   const headerHeight = 40;
-  const leftContentHeight = headerHeight + (6 * rowHeight);
-  const rightContentHeight = headerHeight + (3 * rowHeight);
+  const leftContentHeight = headerHeight + 6 * rowHeight;
+  const rightContentHeight = headerHeight + 3 * rowHeight;
   const boxHeight = Math.max(leftContentHeight, rightContentHeight) + 15;
 
   doc.setFillColor(backgroundColor);
@@ -102,7 +98,7 @@ async function generateAndDownloadPDF(customerId) {
 
   let leftY = boxStartY;
   let rightY = boxStartY;
-  
+
   const drawDetailRow = (label, value, startX, startY) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
@@ -124,10 +120,30 @@ async function generateAndDownloadPDF(customerId) {
   leftY += 15;
   leftY = drawDetailRow("Customer Name:", name, leftBoxX, leftY);
   leftY = drawDetailRow("Loan Date:", loanDetails.loanDate, leftBoxX, leftY);
-  leftY = drawDetailRow("Principal Amount:", formatCurrency(loanDetails.principal), leftBoxX, leftY);
-  leftY = drawDetailRow("Interest Rate:", `${loanDetails.interestRate}%`, leftBoxX, leftY);
-  leftY = drawDetailRow("Tenure:", `${loanDetails.installments} installments`, leftBoxX, leftY);
-  leftY = drawDetailRow("Installment Amount:", formatCurrency(paymentSchedule[0].amountDue), leftBoxX, leftY);
+  leftY = drawDetailRow(
+    "Principal Amount:",
+    formatCurrency(loanDetails.principal),
+    leftBoxX,
+    leftY
+  );
+  leftY = drawDetailRow(
+    "Interest Rate:",
+    `${loanDetails.interestRate}%`,
+    leftBoxX,
+    leftY
+  );
+  leftY = drawDetailRow(
+    "Tenure:",
+    `${loanDetails.installments} installments`,
+    leftBoxX,
+    leftY
+  );
+  leftY = drawDetailRow(
+    "Installment Amount:",
+    formatCurrency(paymentSchedule[0].amountDue),
+    leftBoxX,
+    leftY
+  );
 
   rightY += 25;
   doc.setFont("helvetica", "bold");
@@ -135,9 +151,24 @@ async function generateAndDownloadPDF(customerId) {
   doc.setTextColor(brandColor);
   doc.text("Account Summary", rightBoxX + 15, rightY);
   rightY += 15;
-  rightY = drawDetailRow("Total Amount Paid:", formatCurrency(totalPaid), rightBoxX, rightY);
-  rightY = drawDetailRow("Outstanding Balance:", formatCurrency(outstanding), rightBoxX, rightY);
-  rightY = drawDetailRow("Total Interest:", formatCurrency(totalInterest), rightBoxX, rightY);
+  rightY = drawDetailRow(
+    "Total Amount Paid:",
+    formatCurrency(totalPaid),
+    rightBoxX,
+    rightY
+  );
+  rightY = drawDetailRow(
+    "Outstanding Balance:",
+    formatCurrency(outstanding),
+    rightBoxX,
+    rightY
+  );
+  rightY = drawDetailRow(
+    "Total Interest:",
+    formatCurrency(totalInterestPayable),
+    rightBoxX,
+    rightY
+  );
 
   y = boxStartY + boxHeight + 30;
 
@@ -148,7 +179,9 @@ async function generateAndDownloadPDF(customerId) {
   doc.text("Installment Repayment Schedule", 40, y);
   y += 25;
 
-  const tableHead = [["#", "Due Date", "Amount Due", "Amount Paid", "Pending", "Status"]];
+  const tableHead = [
+    ["#", "Due Date", "Amount Due", "Amount Paid", "Pending", "Status"],
+  ];
   const tableBody = paymentSchedule.map((inst) => [
     inst.installment,
     inst.dueDate,
@@ -171,7 +204,7 @@ async function generateAndDownloadPDF(customerId) {
       fontStyle: "bold",
       fontSize: 9,
       halign: "center",
-      lineColor: brandColor
+      lineColor: brandColor,
     },
     styles: {
       font: "helvetica",
@@ -179,27 +212,27 @@ async function generateAndDownloadPDF(customerId) {
       cellPadding: { top: 8, right: 5, bottom: 8, left: 5 },
       lineColor: borderColor,
       lineWidth: 0.5,
-      valign: 'middle'
+      valign: "middle",
     },
-    didParseCell: function(data) {
-      if (data.row.section === 'body') {
+    didParseCell: function (data) {
+      if (data.row.section === "body") {
         const status = data.row.raw[5];
 
         // Apply background color to every cell in the row based on status
-        if (status === 'Paid') {
+        if (status === "Paid") {
           data.cell.styles.fillColor = paidBgColor;
-        } else if (status === 'Pending') {
+        } else if (status === "Pending") {
           data.cell.styles.fillColor = pendingBgColor;
         }
 
         // Apply specific text styling JUST for the status column
         if (data.column.dataKey === 5) {
-          data.cell.styles.fontStyle = 'bold';
-          if (status === 'Paid') {
+          data.cell.styles.fontStyle = "bold";
+          if (status === "Paid") {
             data.cell.styles.textColor = paidTextColor;
-          } else if (status === 'Pending') {
+          } else if (status === "Pending") {
             data.cell.styles.textColor = pendingTextColor;
-          } else if (status === 'Due') {
+          } else if (status === "Due") {
             data.cell.styles.textColor = dueTextColor;
           }
         }
@@ -213,7 +246,8 @@ async function generateAndDownloadPDF(customerId) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(mutedColor);
-    const footerText = "This is a computer-generated statement and does not require a signature.";
+    const footerText =
+      "This is a computer-generated statement and does not require a signature.";
     doc.text(footerText, pageWidth / 2, pageHeight - 25, {
       align: "center",
     });
