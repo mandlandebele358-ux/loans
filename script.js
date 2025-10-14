@@ -38,7 +38,6 @@ const calculateTotalInterest = (loanDetails) => {
   return totalInterest;
 };
 
-// Moved to global scope to be accessible everywhere
 const formatCurrency = (amount) =>
   `₹${Math.round(Number(amount || 0)).toLocaleString("en-IN")}`;
 
@@ -48,18 +47,16 @@ const openWhatsApp = async (customer) => {
     return;
   }
 
-  // Automatically download the PDF first
   try {
     await generateAndDownloadPDF(customer.id);
   } catch (error) {
     console.error("Failed to generate PDF before sending WhatsApp:", error);
-    // Continue to open WhatsApp even if PDF fails, but notify the user
     alert("Could not generate the PDF, but you can still send the message.");
   }
 
   let phone = (customer.whatsapp || customer.phone).replace(/\D/g, "");
   if (phone.length === 10) {
-    phone = "91" + phone; // Assuming Indian numbers
+    phone = "91" + phone;
   }
 
   const { loanDetails, paymentSchedule, name } = customer;
@@ -71,7 +68,9 @@ const openWhatsApp = async (customer) => {
     (p) => p.status === "Due" || p.status === "Pending"
   );
 
-  let message = `Hello ${name},\n\nHere is a summary of your loan with Global Finance Consultant:\n\n`;
+  let message = `Hello ${name},\n\nHere is a summary of your loan with Global Finance Consultant (Finance ${
+    customer.financeCount || 1
+  }):\n\n`;
   message += `*Principal:* ${formatCurrency(loanDetails.principal)}\n`;
   message += `*Total Paid:* ${formatCurrency(totalPaid)}\n`;
   message += `*Outstanding Balance:* ${formatCurrency(outstanding)}\n\n`;
@@ -425,10 +424,6 @@ document.addEventListener("DOMContentLoaded", () => {
             icon = "fa-flag-checkered text-primary";
             text = `Loan settled for ${customerName}`;
             break;
-          case "LOAN_REFINANCED":
-            icon = "fa-sync-alt text-warning";
-            text = `Loan for ${customerName} refinanced to ${amount}`;
-            break;
         }
         const timestamp = act.timestamp
           ? new Date(act.timestamp.seconds * 1000).toLocaleString()
@@ -439,63 +434,72 @@ document.addEventListener("DOMContentLoaded", () => {
     container.innerHTML = `<ul class="activity-list">${activityHTML}</ul>`;
   };
 
-  const populateCustomerLists = () => {
-    const renderList = (element, data, type) => {
-      if (!element) return;
-      element.innerHTML = "";
-      if (data.length === 0) {
-        element.innerHTML = `<li class="activity-item" style="cursor:default; justify-content:center;"><p>No customers found.</p></li>`;
+  const renderList = (element, data, type) => {
+    if (!element) return;
+    element.innerHTML = "";
+    if (data.length === 0) {
+      element.innerHTML = `<li class="activity-item" style="cursor:default; justify-content:center;"><p>No customers found.</p></li>`;
+      return;
+    }
+    data.forEach((c) => {
+      const li = document.createElement("li");
+      li.className = "customer-item";
+      if (!c.loanDetails || !c.paymentSchedule) {
+        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details"><span>Data format error</span></div></div><div class="customer-actions"><span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
+        element.appendChild(li);
         return;
       }
-      data.forEach((c) => {
-        const li = document.createElement("li");
-        li.className = "customer-item";
-        if (!c.loanDetails || !c.paymentSchedule) {
-          li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details"><span>Data format error</span></div></div><div class="customer-actions"><span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
-          element.appendChild(li);
-          return;
-        }
 
-        const financeCount = c.financeCount || 1;
-        const financeBadge = `<span class="finance-count-badge">${financeCount}</span>`;
+      const financeCount = c.financeCount || 1;
+      const totalPaid = c.paymentSchedule.reduce(
+        (sum, p) => sum + p.amountPaid,
+        0
+      );
+      const interestEarned = Math.max(0, totalPaid - c.loanDetails.principal);
+      const paidInstallments = c.paymentSchedule.filter(
+        (p) => p.status === "Paid"
+      ).length;
 
-        const totalPaid = c.paymentSchedule.reduce(
-          (sum, p) => sum + p.amountPaid,
-          0
-        );
-        const interestEarned = Math.max(0, totalPaid - c.loanDetails.principal);
-        const paidInstallments = c.paymentSchedule.filter(
-          (p) => p.status === "Paid"
-        ).length;
+      let detailsHtml;
+      let nameHtml = `<div class="customer-name">${c.name}</div>`;
 
-        const detailsHtml =
-          type === "settled" || type === "Refinanced"
-            ? `<span>Principal: ${formatCurrency(
-                c.loanDetails.principal
-              )}</span><span class="list-profit-display success">Interest: ${formatCurrency(
-                interestEarned
-              )}</span>`
-            : `<span>Due: ${formatCurrency(
-                c.paymentSchedule[0]?.amountDue
-              )}</span><span>Paid: ${paidInstallments}/${
-                c.paymentSchedule.length
-              }</span>`;
+      if (type === "settled") {
+        const financeStatusText = `Finance ${financeCount} - ${c.status}`;
+        nameHtml = `<div class="customer-name">${c.name} <span class="finance-status-badge">${financeStatusText}</span></div>`;
+        detailsHtml = `<span>Principal: ${formatCurrency(
+          c.loanDetails.principal
+        )}</span><span class="list-profit-display success">Interest: ${formatCurrency(
+          interestEarned
+        )}</span>`;
+      } else {
+        // type is 'active'
+        nameHtml = `<div class="customer-name">${c.name} <span class="finance-count-badge">${financeCount}</span></div>`;
+        detailsHtml = `<span>Due: ${formatCurrency(
+          c.paymentSchedule[0]?.amountDue
+        )}</span><span>Paid: ${paidInstallments}/${
+          c.paymentSchedule.length
+        }</span>`;
+      }
 
-        const deleteButton =
-          type === "settled"
-            ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
-            : "";
-        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${financeBadge}${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
-        element.appendChild(li);
-      });
-    };
+      const deleteButton =
+        type === "settled"
+          ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
+          : "";
+
+      li.innerHTML = `<div class="customer-info" data-id="${c.id}">${nameHtml}<div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
+      element.appendChild(li);
+    });
+  };
+
+  const populateCustomerLists = () => {
     getEl(
       "active-accounts-section"
     ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Active Accounts (${window.allCustomers.active.length})</h3><button class="btn btn-outline" id="export-active-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><div class="form-group"><input type="text" id="search-customers" class="form-control" placeholder="Search active customers..." /></div><ul id="customers-list" class="customer-list"></ul></div>`;
     renderList(getEl("customers-list"), window.allCustomers.active, "active");
+
     getEl(
       "settled-accounts-section"
-    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Settled Accounts (${window.allCustomers.settled.length})</h3><button class="btn btn-outline" id="export-settled-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><ul id="settled-customers-list" class="customer-list"></ul></div>`;
+    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Settled Accounts (${window.allCustomers.settled.length})</h3><div style="display: flex; gap: 0.75rem;"><button class="btn btn-danger" id="delete-all-settled-btn"><i class="fas fa-trash-alt"></i> Delete All</button><button class="btn btn-outline" id="export-settled-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div></div><ul id="settled-customers-list" class="customer-list"></ul></div>`;
     renderList(
       getEl("settled-customers-list"),
       window.allCustomers.settled,
@@ -521,7 +525,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (nextDueInstallment) {
           const dueDate = new Date(nextDueInstallment.dueDate);
           const entry = {
-            name: customer.name,
+            name: `${customer.name} (F${customer.financeCount || 1})`,
             amount: nextDueInstallment.pendingAmount,
             date: nextDueInstallment.dueDate,
             customerId: customer.id,
@@ -585,7 +589,9 @@ document.addEventListener("DOMContentLoaded", () => {
               item.id
             }"><div class="activity-info"><span class="activity-name">${
               item.name
-            }</span><span class="activity-details">Installment #${
+            } (F${
+              item.financeCount || 1
+            })</span><span class="activity-details">Installment #${
               item.dueInstallment.installment
             }</span></div><div class="activity-value"><span class="activity-amount">${formatCurrency(
               item.dueInstallment.pendingAmount
@@ -603,43 +609,62 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const showCustomerDetails = (customerId) => {
-    const customer = [...window.allCustomers.active, ...window.allCustomers.settled].find((c) => c.id === customerId);
+    const customer = [
+      ...window.allCustomers.active,
+      ...window.allCustomers.settled,
+    ].find((c) => c.id === customerId);
     if (!customer) return;
 
-    const allLoansForCustomer = [...window.allCustomers.active, ...window.allCustomers.settled]
-        .filter((c) => c.name === customer.name)
-        .sort((a, b) => (a.financeCount || 1) - (b.financeCount || 1));
+    const allLoansForCustomer = [
+      ...window.allCustomers.active,
+      ...window.allCustomers.settled,
+    ]
+      .filter((c) => c.name === customer.name)
+      .sort((a, b) => (a.financeCount || 1) - (b.financeCount || 1));
 
-    const uniqueLoans = [...new Map(allLoansForCustomer.map(item => [item.id, item])).values()];
+    const uniqueLoans = [
+      ...new Map(allLoansForCustomer.map((item) => [item.id, item])).values(),
+    ];
 
-    // *** NEW LOGIC TO FIX THE DUPLICATE DISPLAY ***
     const optionsMap = new Map();
-    uniqueLoans.forEach(loan => {
-        const label = `Finance ${loan.financeCount || 1}`;
-        // This logic ensures that for any given "Finance X", we prioritize showing the active one,
-        // or the one currently being viewed. This cleans up duplicates from the display.
-        if (!optionsMap.has(label) || loan.status === 'active' || loan.id === customerId) {
-            optionsMap.set(label, loan);
-        }
+    uniqueLoans.forEach((loan) => {
+      const label = `Finance ${loan.financeCount || 1}`;
+      if (
+        !optionsMap.has(label) ||
+        loan.status === "active" ||
+        loan.id === customerId
+      ) {
+        optionsMap.set(label, loan);
+      }
     });
-    const loansToDisplay = Array.from(optionsMap.values()).sort((a,b) => (a.financeCount || 1) - (b.financeCount || 1));
+    const loansToDisplay = Array.from(optionsMap.values()).sort(
+      (a, b) => (a.financeCount || 1) - (b.financeCount || 1)
+    );
 
     const switcherContainer = getEl("loan-switcher-container");
-    const customSelect = switcherContainer.querySelector('.custom-select');
-    const optionsContainer = customSelect.querySelector('.custom-options');
-    const triggerText = customSelect.querySelector('.custom-select-trigger span');
+    const customSelect = switcherContainer.querySelector(".custom-select");
+    const optionsContainer = customSelect.querySelector(".custom-options");
+    const triggerText = customSelect.querySelector(
+      ".custom-select-trigger span"
+    );
 
-    if (loansToDisplay.length > 1) { 
-        switcherContainer.classList.remove("hidden");
-        optionsContainer.innerHTML = loansToDisplay.map(loan =>
-            `<div class="custom-option ${loan.id === customerId ? 'selected' : ''}" data-value="${loan.id}">
+    if (loansToDisplay.length > 1) {
+      switcherContainer.classList.remove("hidden");
+      optionsContainer.innerHTML = loansToDisplay
+        .map(
+          (loan) =>
+            `<div class="custom-option ${
+              loan.id === customerId ? "selected" : ""
+            }" data-value="${loan.id}">
                 Finance ${loan.financeCount || 1}
             </div>`
-        ).join('');
-        const currentLoan = loansToDisplay.find(l => l.id === customerId) || customer;
-        triggerText.textContent = `Finance ${currentLoan.financeCount || 1}`;
+        )
+        .join("");
+      const currentLoan =
+        loansToDisplay.find((l) => l.id === customerId) || customer;
+      triggerText.textContent = `Finance ${currentLoan.financeCount || 1}`;
     } else {
-        switcherContainer.classList.add("hidden");
+      switcherContainer.classList.add("hidden");
     }
 
     renderLoanDetails(customerId);
@@ -647,7 +672,10 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const renderLoanDetails = (customerId) => {
-    const customer = [...window.allCustomers.active, ...window.allCustomers.settled].find((c) => c.id === customerId);
+    const customer = [
+      ...window.allCustomers.active,
+      ...window.allCustomers.settled,
+    ].find((c) => c.id === customerId);
     if (!customer) return;
 
     const modalBody = getEl("details-modal-body");
@@ -680,29 +708,11 @@ document.addEventListener("DOMContentLoaded", () => {
       (p) => p.status === "Due" || p.status === "Pending"
     );
 
-    const allLoansForThisCustomer = window.allCustomers.active.filter(
-      (c) => c.name === customer.name
-    );
-    const latestLoan = allLoansForThisCustomer.sort(
-      (a, b) => (b.financeCount || 1) - (a.financeCount || 1)
-    )[0];
-
-    // Show refinance/settle buttons only if the loan is active
-    let actionButtons = '';
-    if (customer.status === 'active') {
-        if (!latestLoan || customer.id === latestLoan.id) {
-             actionButtons += `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`;
-        }
-        actionButtons += `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`;
+    let actionButtons = "";
+    if (customer.status === "active") {
+      actionButtons += `<button class="btn btn-primary" id="add-new-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Add New Loan</button>`;
+      actionButtons += `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`;
     }
-
-
-    const hasHistory = customer.history && customer.history.length > 0;
-    const historyButton = `<button class="btn btn-outline" id="view-history-btn" data-id="${
-      customer.id
-    }" ${!hasHistory ? "disabled" : ""}><i class="fas fa-history"></i> ${
-      hasHistory ? "View History" : "No History"
-    }</button>`;
 
     const createKycViewButton = (url, label = "View File") =>
       url
@@ -728,7 +738,7 @@ document.addEventListener("DOMContentLoaded", () => {
       schedule.length
     } Paid)</h4><div class="progress-bar"><div class="progress-bar-inner" style="width: ${progress}%;"></div></div></div><div class="loan-actions"><button class="btn btn-outline" id="edit-customer-info-btn" data-id="${
       customer.id
-    }"><i class="fas fa-edit"></i> Edit Info</button>${actionButtons}${historyButton}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
+    }"><i class="fas fa-edit"></i> Edit Info</button>${actionButtons}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
       details.principal
     )}</span></div><div class="calc-result-item"><span>Total Interest Paid</span><span>${formatCurrency(
       totalInterestPaid
@@ -779,28 +789,36 @@ document.addEventListener("DOMContentLoaded", () => {
       emiTableBody.appendChild(tr);
     });
   };
-  
-  // --- Reusable function to settle a loan by its ID ---
+
   async function settleLoanById(loanId) {
-    const customerToSettle = window.allCustomers.active.find(c => c.id === loanId);
+    const customerToSettle = window.allCustomers.active.find(
+      (c) => c.id === loanId
+    );
     if (!customerToSettle) {
-        showToast("error", "Not Found", "The selected loan could not be found.");
-        return;
+      showToast("error", "Not Found", "The selected loan could not be found.");
+      return;
     }
     try {
-        await db.collection("customers").doc(loanId).update({ status: "settled" });
-        await logActivity("LOAN_SETTLED", {
-            customerName: customerToSettle.name,
-        });
-        showToast("success", "Loan Settled", `Finance ${customerToSettle.financeCount || 1} moved to settled.`);
-        getEl("customer-details-modal").classList.remove("show");
-        getEl("settle-selection-modal").classList.remove("show"); // Ensure selection modal is hidden
-        await loadAndRenderAll();
+      await db
+        .collection("customers")
+        .doc(loanId)
+        .update({ status: "settled" });
+      await logActivity("LOAN_SETTLED", {
+        customerName: customerToSettle.name,
+        financeCount: customerToSettle.financeCount || 1,
+      });
+      showToast(
+        "success",
+        "Loan Settled",
+        `Finance ${customerToSettle.financeCount || 1} moved to settled.`
+      );
+      getEl("customer-details-modal").classList.remove("show");
+      getEl("settle-selection-modal").classList.remove("show");
+      await loadAndRenderAll();
     } catch (error) {
-        showToast("error", "Settle Failed", error.message);
+      showToast("error", "Settle Failed", error.message);
     }
   }
-
 
   auth.onAuthStateChanged(async (user) => {
     currentUser = user;
@@ -820,60 +838,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  function updateInstallmentPreview() {
-    const previewDiv = getEl("installment-preview");
-    const p = parseFloat(getEl("principal-amount").value);
-    const r = parseFloat(getEl("interest-rate-modal").value);
-    const freq = getEl("collection-frequency").value;
-    const firstDate = getEl("first-collection-date").value;
-    const endDate = getEl("loan-end-date").value;
+  function updateNewLoanInstallmentPreview() {
+    const previewDiv = getEl("new-loan-installment-preview");
+    const p = parseFloat(getEl("new-loan-principal").value);
+    const r = parseFloat(getEl("new-loan-interest-rate").value);
+    const freq = getEl("new-loan-frequency").value;
+    const firstDate = new Date().toISOString().split("T")[0]; // Today
+    const endDate = getEl("new-loan-end-date").value;
 
-    if (!p || !r || !firstDate || !endDate) {
-      previewDiv.classList.add("hidden");
-      return;
-    }
-
-    try {
-      const n = calculateInstallments(firstDate, endDate, freq);
-      if (n <= 0) {
-        throw new Error("Invalid date range for the selected frequency.");
-      }
-      const totalInterest = calculateTotalInterest({
-        principal: p,
-        interestRate: r,
-        installments: n,
-        frequency: freq,
-      });
-      const totalRepayable = p + totalInterest;
-      const installmentAmount = totalRepayable / n;
-
-      previewDiv.innerHTML = `<p>Calculated: <strong>${n} installments</strong> of <strong>${formatCurrency(
-        installmentAmount
-      )}</strong> each.</p>`;
-      previewDiv.classList.remove("error");
-      previewDiv.classList.remove("hidden");
-    } catch (error) {
-      previewDiv.innerHTML = `<p>${error.message}</p>`;
-      previewDiv.classList.add("error");
-      previewDiv.classList.remove("hidden");
-    }
-  }
-
-  function updateRefinancePreview() {
-    const previewDiv = getEl("refinance-installment-preview");
-    const outstanding = parseFloat(
-      getEl("refinance-outstanding").textContent.replace(/[^0-9.-]+/g, "")
-    );
-    const newAmt = parseFloat(getEl("refinance-new-amount").value) || 0;
-    const p = outstanding + newAmt;
-    const r = parseFloat(getEl("refinance-interest-rate").value);
-    const freq = getEl("refinance-frequency").value;
-    const firstDate = new Date().toISOString().split("T")[0];
-    const endDate = getEl("refinance-end-date").value;
-
-    getEl("refinance-new-principal").textContent = formatCurrency(p);
-
-    if (!p || !r || !firstDate || !endDate) {
+    if (!p || !r || !endDate) {
       previewDiv.classList.add("hidden");
       return;
     }
@@ -895,8 +868,7 @@ document.addEventListener("DOMContentLoaded", () => {
       previewDiv.innerHTML = `<p>New Loan: <strong>${n} installments</strong> of <strong>${formatCurrency(
         installmentAmount
       )}</strong> each.</p>`;
-      previewDiv.classList.remove("error");
-      previewDiv.classList.remove("hidden");
+      previewDiv.classList.remove("error", "hidden");
     } catch (error) {
       previewDiv.innerHTML = `<p>${error.message}</p>`;
       previewDiv.classList.add("error");
@@ -921,31 +893,33 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.body.addEventListener("click", async (e) => {
-        const target = e.target;
-        const button = target.closest("button");
-        
-        // Custom Select Logic
-        const customSelect = target.closest('.custom-select');
-        if (customSelect && !target.closest('.custom-option')) {
-            customSelect.classList.toggle('open');
-        } else if (!target.closest('.custom-select-wrapper')) {
-            document.querySelectorAll('.custom-select.open').forEach(select => select.classList.remove('open'));
-        }
+      const target = e.target;
+      const button = target.closest("button");
 
-        const customOption = target.closest('.custom-option');
-        if (customOption) {
-            const selectWrapper = target.closest('.custom-select-wrapper');
-            const triggerText = selectWrapper.querySelector('.custom-select-trigger span');
-            triggerText.textContent = customOption.textContent.trim();
-            selectWrapper.querySelector('.custom-select').classList.remove('open');
-            
-            // Remove selected class from sibling
-            const options = selectWrapper.querySelectorAll('.custom-option');
-            options.forEach(opt => opt.classList.remove('selected'));
-            customOption.classList.add('selected');
-            
-            renderLoanDetails(customOption.dataset.value);
-        }
+      const customSelect = target.closest(".custom-select");
+      if (customSelect && !target.closest(".custom-option")) {
+        customSelect.classList.toggle("open");
+      } else if (!target.closest(".custom-select-wrapper")) {
+        document
+          .querySelectorAll(".custom-select.open")
+          .forEach((select) => select.classList.remove("open"));
+      }
+
+      const customOption = target.closest(".custom-option");
+      if (customOption) {
+        const selectWrapper = target.closest(".custom-select-wrapper");
+        const triggerText = selectWrapper.querySelector(
+          ".custom-select-trigger span"
+        );
+        triggerText.textContent = customOption.textContent.trim();
+        selectWrapper.querySelector(".custom-select").classList.remove("open");
+
+        const options = selectWrapper.querySelectorAll(".custom-option");
+        options.forEach((opt) => opt.classList.remove("selected"));
+        customOption.classList.add("selected");
+
+        renderLoanDetails(customOption.dataset.value);
+      }
 
       if (target.id === "forgot-password-link") {
         e.preventDefault();
@@ -1104,71 +1078,49 @@ document.addEventListener("DOMContentLoaded", () => {
               }
             }
           );
-        } else if (button.id === "view-history-btn") {
-          const customer = [
-            ...window.allCustomers.active,
-            ...window.allCustomers.settled,
-          ].find((c) => c.id === button.dataset.id);
-          if (customer && customer.history) {
-            const historyBody = getEl("history-modal-body");
-            historyBody.innerHTML =
-              customer.history
-                .map((record, index) => {
-                  const details = record.loanDetails;
-                  const paidInstallments = record.paymentSchedule.filter(
-                    (p) => p.status === "Paid" || p.status === "Pending"
+        } else if (button.id === "delete-all-settled-btn") {
+          showConfirmation(
+            "Delete All Settled Accounts?",
+            "This will permanently delete ALL settled and refinanced accounts from your records. This action cannot be undone. Are you sure?",
+            async () => {
+              const btn = getEl("delete-all-settled-btn");
+              toggleButtonLoading(btn, true, "Deleting...");
+              try {
+                const querySnapshot = await db
+                  .collection("customers")
+                  .where("owner", "==", currentUser.uid)
+                  .where("status", "in", ["settled", "Refinanced"])
+                  .get();
+
+                if (querySnapshot.empty) {
+                  showToast(
+                    "success",
+                    "No Accounts",
+                    "There are no settled accounts to delete."
                   );
+                  toggleButtonLoading(btn, false);
+                  return;
+                }
 
-                  const paymentsTable =
-                    paidInstallments.length > 0
-                      ? `
-                  <table class="history-payment-table">
-                    <thead><tr><th>#</th><th>Amount Paid</th><th>Date Paid</th></tr></thead>
-                    <tbody>
-                      ${paidInstallments
-                        .map(
-                          (p) => `
-                        <tr>
-                          <td>${p.installment}</td>
-                          <td>${formatCurrency(p.amountPaid)}</td>
-                          <td>${
-                            p.paidDate
-                              ? new Date(p.paidDate).toLocaleString()
-                              : "N/A"
-                          }</td>
-                        </tr>
-                      `
-                        )
-                        .join("")}
-                    </tbody>
-                  </table>
-                `
-                      : "<p>No payments were recorded for this loan.</p>";
+                const batch = db.batch();
+                querySnapshot.docs.forEach((doc) => {
+                  batch.delete(doc.ref);
+                });
 
-                  return `<div class="history-card">
-                          <div class="history-card-header">
-                            <h3>Finance #${customer.history.length - index}</h3>
-                            <span class="date">Settled on: ${
-                              record.settledDate
-                            }</span>
-                          </div>
-                          <div class="history-card-body">
-                            <div class="history-stat"><span class="label">Principal</span><span class="value">${formatCurrency(
-                              details.principal
-                            )}</span></div>
-                            <div class="history-stat"><span class="label">Interest Rate</span><span class="value">${
-                              details.interestRate
-                            }%</span></div>
-                            <div class="history-stat"><span class="label">Installments</span><span class="value">${
-                              details.installments
-                            }</span></div>
-                          </div>
-                          ${paymentsTable}
-                        </div>`;
-                })
-                .join("") || "<p>No history found.</p>";
-            getEl("history-modal").classList.add("show");
-          }
+                await batch.commit();
+                showToast(
+                  "success",
+                  "Deletion Complete",
+                  `${querySnapshot.size} settled account(s) have been deleted.`
+                );
+                await loadAndRenderAll();
+              } catch (error) {
+                showToast("error", "Deletion Failed", error.message);
+              } finally {
+                toggleButtonLoading(btn, false);
+              }
+            }
+          );
         } else if (button.id === "clear-all-activities-btn") {
           showConfirmation(
             "Clear All Activities?",
@@ -1205,7 +1157,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
           getEl("first-collection-date").value = today;
 
-          // Show all sections for new customer
           getEl("personal-info-fields").style.display = "block";
           getEl("kyc-info-fields").style.display = "block";
           getEl("loan-details-fields").style.display = "block";
@@ -1231,7 +1182,6 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-whatsapp").value = customer.whatsapp || "";
           getEl("customer-address").value = customer.address || "";
 
-          // Show personal and KYC, hide loan details
           getEl("personal-info-fields").style.display = "block";
           getEl("kyc-info-fields").style.display = "block";
           getEl("loan-details-fields").style.display = "none";
@@ -1241,70 +1191,77 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("customer-details-modal").classList.remove("show");
           getEl("customer-form-modal").classList.add("show");
         } else if (button.id === "settle-loan-btn") {
-            const currentLoanId = button.dataset.id;
-            const currentCustomer = window.allCustomers.active.find(c => c.id === currentLoanId);
-            if (!currentCustomer) return;
+          const currentLoanId = button.dataset.id;
+          const currentCustomer = window.allCustomers.active.find(
+            (c) => c.id === currentLoanId
+          );
+          if (!currentCustomer) return;
 
-            // Find all active loans for this customer by name
-            const allActiveLoansForCustomer = window.allCustomers.active.filter(
-                c => c.name === currentCustomer.name
+          const allActiveLoansForCustomer = window.allCustomers.active.filter(
+            (c) => c.name === currentCustomer.name
+          );
+
+          if (allActiveLoansForCustomer.length <= 1) {
+            showConfirmation(
+              `Settle Loan?`,
+              `This will move Finance ${
+                currentCustomer.financeCount || 1
+              } to the 'Settled' list. Are you sure?`,
+              () => {
+                settleLoanById(currentLoanId);
+              }
             );
-
-            if (allActiveLoansForCustomer.length <= 1) {
-                // Only one loan, use the simple confirmation
-                showConfirmation(
-                    `Settle Loan?`,
-                    `This will move Finance ${currentCustomer.financeCount || 1} to the 'Settled' list. Are you sure?`,
-                    () => {
-                        settleLoanById(currentLoanId);
-                    }
-                );
-            } else {
-                // Multiple loans, show the selection modal
-                const optionsContainer = getEl("settle-options-container");
-                optionsContainer.innerHTML = allActiveLoansForCustomer.map(loan => `
+          } else {
+            const optionsContainer = getEl("settle-options-container");
+            optionsContainer.innerHTML = allActiveLoansForCustomer
+              .map(
+                (loan) => `
                     <div class="selection-item">
-                        <input type="radio" name="settle-loan" id="settle-${loan.id}" value="${loan.id}" ${loan.id === currentLoanId ? 'checked' : ''}>
+                        <input type="radio" name="settle-loan" id="settle-${
+                          loan.id
+                        }" value="${loan.id}" ${
+                  loan.id === currentLoanId ? "checked" : ""
+                }>
                         <label for="settle-${loan.id}">
                             Finance ${loan.financeCount || 1}
-                            <span>Principal: ${formatCurrency(loan.loanDetails.principal)} / Due: ${formatCurrency(loan.paymentSchedule[0]?.amountDue)}</span>
+                            <span>Principal: ${formatCurrency(
+                              loan.loanDetails.principal
+                            )} / Due: ${formatCurrency(
+                  loan.paymentSchedule[0]?.amountDue
+                )}</span>
                         </label>
                     </div>
-                `).join('');
-                
-                getEl("settle-selection-modal").classList.add("show");
-            }
+                `
+              )
+              .join("");
+
+            getEl("settle-selection-modal").classList.add("show");
+          }
         } else if (button.id === "settle-confirm-btn") {
-            const selectedRadio = document.querySelector('input[name="settle-loan"]:checked');
-            if (selectedRadio) {
-                const loanIdToSettle = selectedRadio.value;
-                settleLoanById(loanIdToSettle);
-            } else {
-                showToast('error', 'No Selection', 'Please select a loan to settle.');
-            }
-        } else if (button.id === "refinance-loan-btn") {
+          const selectedRadio = document.querySelector(
+            'input[name="settle-loan"]:checked'
+          );
+          if (selectedRadio) {
+            const loanIdToSettle = selectedRadio.value;
+            settleLoanById(loanIdToSettle);
+          } else {
+            showToast(
+              "error",
+              "No Selection",
+              "Please select a loan to settle."
+            );
+          }
+        } else if (button.id === "add-new-loan-btn") {
+          const customerId = button.dataset.id;
           const customer = window.allCustomers.active.find(
-            (c) => c.id === button.dataset.id
+            (c) => c.id === customerId
           );
           if (!customer) return;
 
-          const totalInterest = calculateTotalInterest(customer.loanDetails);
-          const totalPaid = customer.paymentSchedule.reduce(
-            (sum, p) => sum + p.amountPaid,
-            0
-          );
-          const totalRepayable = customer.loanDetails.principal + totalInterest;
-
-          const outstanding = totalRepayable - totalPaid;
-          getEl("refinance-customer-id").value = customer.id;
-          getEl("refinance-outstanding").textContent =
-            formatCurrency(outstanding);
-          getEl("refinance-form").reset();
-          getEl("refinance-new-principal").textContent =
-            formatCurrency(outstanding);
-          getEl("refinance-new-amount").value = 0;
-          getEl("refinance-installment-preview").classList.add("hidden");
-          getEl("refinance-modal").classList.add("show");
+          getEl("new-loan-customer-id").value = customerId;
+          getEl("new-loan-form").reset();
+          getEl("new-loan-installment-preview").classList.add("hidden");
+          getEl("new-loan-modal").classList.add("show");
         } else if (button.id === "export-active-btn") {
           exportToExcel(
             window.allCustomers.active,
@@ -1409,6 +1366,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     });
+
     document.body.addEventListener("submit", async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -1418,7 +1376,6 @@ document.addEventListener("DOMContentLoaded", () => {
         toggleButtonLoading(saveBtn, true, id ? "Updating..." : "Saving...");
 
         try {
-          // Prepare personal and KYC data
           const customerData = {
             name: getEl("customer-name").value,
             phone: getEl("customer-phone").value,
@@ -1454,15 +1411,12 @@ document.addEventListener("DOMContentLoaded", () => {
           };
 
           if (id) {
-            // This is an EDIT operation
             const updatePayload = { ...customerData };
-            // Filter out null KYC doc URLs to avoid overwriting existing ones with null
             Object.keys(updatePayload.kycDocs).forEach((key) => {
               if (updatePayload.kycDocs[key] === null) {
                 delete updatePayload.kycDocs[key];
               }
             });
-            // Use dot notation for updating nested object fields
             const finalUpdate = {
               name: updatePayload.name,
               phone: updatePayload.phone,
@@ -1483,7 +1437,6 @@ document.addEventListener("DOMContentLoaded", () => {
               "Details saved successfully."
             );
           } else {
-            // This is a NEW customer operation
             const p = parseFloat(getEl("principal-amount").value);
             const r = parseFloat(getEl("interest-rate-modal").value);
             const freq = getEl("collection-frequency").value;
@@ -1515,7 +1468,7 @@ document.addEventListener("DOMContentLoaded", () => {
             customerData.createdAt =
               firebase.firestore.FieldValue.serverTimestamp();
             customerData.status = "active";
-            customerData.financeCount = 1; // First loan
+            customerData.financeCount = 1;
 
             toggleButtonLoading(saveBtn, true, "Saving Customer...");
             await db.collection("customers").add(customerData);
@@ -1560,7 +1513,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const pending = installment.amountDue - amountPaid;
           installment.amountPaid = amountPaid;
           installment.pendingAmount = pending;
-          installment.paidDate = new Date().toISOString(); // Timestamp the payment
+          installment.paidDate = new Date().toISOString();
 
           if (pending <= 0.001) {
             installment.status = "Paid";
@@ -1569,7 +1522,7 @@ document.addEventListener("DOMContentLoaded", () => {
             installment.status = "Pending";
           } else {
             installment.status = "Due";
-            installment.paidDate = null; // No payment, so no date
+            installment.paidDate = null;
           }
 
           await db
@@ -1619,105 +1572,84 @@ document.addEventListener("DOMContentLoaded", () => {
         getEl("result-interest").textContent = formatCurrency(totalInterest);
         getEl("result-total").textContent = formatCurrency(totalPayment);
         getEl("calculator-results").classList.remove("hidden");
-      } else if (form.id === "refinance-form") {
-        const saveBtn = getEl("refinance-modal-save");
-        toggleButtonLoading(saveBtn, true, "Processing...");
+      } else if (form.id === "new-loan-form") {
+        const saveBtn = getEl("new-loan-modal-save");
+        toggleButtonLoading(saveBtn, true, "Creating...");
         try {
-          const customerId = getEl("refinance-customer-id").value;
-          const customerRef = db.collection("customers").doc(customerId);
-          const doc = await customerRef.get();
-          if (!doc.exists) throw new Error("Customer not found");
-
-          const oldData = doc.data();
-
-          // Archive the old loan by updating its status to "Refinanced"
-          const historyRecord = {
-            loanDetails: oldData.loanDetails,
-            paymentSchedule: oldData.paymentSchedule,
-            settledDate: new Date().toISOString().split("T")[0],
-            reason: "Refinanced",
-          };
-          const updatedHistory = oldData.history
-            ? [...oldData.history, historyRecord]
-            : [historyRecord];
-
-          await customerRef.update({
-            status: "Refinanced",
-            history: updatedHistory,
-          });
-
-          // Create a brand new loan
-          const newAmount = parseFloat(getEl("refinance-new-amount").value);
-          const newEndDate = getEl("refinance-end-date").value;
-          const newStartDate = new Date().toISOString().split("T")[0];
-          const newRate = parseFloat(getEl("refinance-interest-rate").value);
-          const newFrequency = getEl("refinance-frequency").value;
-
-          if (!newEndDate || isNaN(newRate) || !newFrequency) {
-            throw new Error("Please fill all fields for the new loan.");
-          }
-
-          const totalInterestOld = calculateTotalInterest(oldData.loanDetails);
-          const totalPaidOld = oldData.paymentSchedule.reduce(
-            (sum, p) => sum + p.amountPaid,
-            0
+          const baseCustomerId = getEl("new-loan-customer-id").value;
+          const allCustomerLoans = [
+            ...window.allCustomers.active,
+            ...window.allCustomers.settled,
+          ];
+          const baseCustomer = allCustomerLoans.find(
+            (c) => c.id === baseCustomerId
           );
-          const totalRepayableOld =
-            oldData.loanDetails.principal + totalInterestOld;
-          const outstanding = totalRepayableOld - totalPaidOld;
+          if (!baseCustomer) throw new Error("Base customer data not found.");
 
-          const newPrincipal = outstanding + newAmount;
-          const newTenure = calculateInstallments(
-            newStartDate,
-            newEndDate,
-            newFrequency
+          const allLoansForThisCustomerName = allCustomerLoans.filter(
+            (c) => c.name === baseCustomer.name
+          );
+          const maxFinanceCount = Math.max(
+            0,
+            ...allLoansForThisCustomerName.map((c) => c.financeCount || 1)
           );
 
-          const newSchedule = generateSimpleInterestSchedule(
-            newPrincipal,
-            newRate,
-            newTenure,
-            newStartDate,
-            newFrequency
-          );
+          const p = parseFloat(getEl("new-loan-principal").value);
+          const r = parseFloat(getEl("new-loan-interest-rate").value);
+          const freq = getEl("new-loan-frequency").value;
+          const firstDate = new Date().toISOString().split("T")[0];
+          const endDate = getEl("new-loan-end-date").value;
+          const n = calculateInstallments(firstDate, endDate, freq);
 
-          const newFinanceCount = (oldData.financeCount || 1) + 1;
+          if (isNaN(p) || isNaN(r) || isNaN(n) || !endDate)
+            throw new Error("Please fill all new loan fields correctly.");
 
           const newLoanData = {
-            ...oldData, // Copy all personal details like name, phone, etc.
+            name: baseCustomer.name,
+            phone: baseCustomer.phone,
+            fatherName: baseCustomer.fatherName,
+            address: baseCustomer.address,
+            whatsapp: baseCustomer.whatsapp,
+            kycDocs: baseCustomer.kycDocs || {},
+            owner: currentUser.uid,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            status: "active",
+            financeCount: maxFinanceCount + 1,
             loanDetails: {
-              principal: newPrincipal,
-              interestRate: newRate,
-              installments: newTenure,
-              frequency: newFrequency,
-              loanDate: newStartDate,
-              firstCollectionDate: newStartDate,
+              principal: p,
+              interestRate: r,
+              installments: n,
+              frequency: freq,
+              loanDate: firstDate,
+              firstCollectionDate: firstDate,
               type: "simple_interest",
             },
-            paymentSchedule: newSchedule,
-            history: updatedHistory, // Carry over the full history
-            financeCount: newFinanceCount,
-            status: "active",
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(), // Give it a new timestamp to appear at top
+            paymentSchedule: generateSimpleInterestSchedule(
+              p,
+              r,
+              n,
+              firstDate,
+              freq
+            ),
           };
-          delete newLoanData.id; // remove old id before creating new doc
 
           await db.collection("customers").add(newLoanData);
-
-          await logActivity("LOAN_REFINANCED", {
-            customerName: oldData.name,
-            amount: newPrincipal,
+          await logActivity("NEW_LOAN", {
+            customerName: newLoanData.name,
+            amount: p,
+            financeCount: newLoanData.financeCount,
           });
           showToast(
             "success",
-            "Loan Refinanced",
-            `New Finance #${newFinanceCount} created.`
+            "Loan Added",
+            `New Finance #${newLoanData.financeCount} created for ${newLoanData.name}.`
           );
-          getEl("refinance-modal").classList.remove("show");
+
+          getEl("new-loan-modal").classList.remove("show");
           getEl("customer-details-modal").classList.remove("show");
           await loadAndRenderAll();
         } catch (error) {
-          showToast("error", "Refinance Failed", error.message);
+          showToast("error", "Failed", error.message);
         } finally {
           toggleButtonLoading(saveBtn, false);
         }
@@ -1773,22 +1705,21 @@ document.addEventListener("DOMContentLoaded", () => {
     loanDetailFields.forEach((id) => {
       const element = getEl(id);
       if (element) {
-        element.addEventListener("input", updateInstallmentPreview);
-        element.addEventListener("change", updateInstallmentPreview);
+        // This is for the main "Add Customer" modal
       }
     });
 
-    const refinanceDetailFields = [
-      "refinance-new-amount",
-      "refinance-interest-rate",
-      "refinance-frequency",
-      "refinance-end-date",
+    const newLoanDetailFields = [
+      "new-loan-principal",
+      "new-loan-interest-rate",
+      "new-loan-frequency",
+      "new-loan-end-date",
     ];
-    refinanceDetailFields.forEach((id) => {
+    newLoanDetailFields.forEach((id) => {
       const element = getEl(id);
       if (element) {
-        element.addEventListener("input", updateRefinancePreview);
-        element.addEventListener("change", updateRefinancePreview);
+        element.addEventListener("input", updateNewLoanInstallmentPreview);
+        element.addEventListener("change", updateNewLoanInstallmentPreview);
       }
     });
 
@@ -1812,17 +1743,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     });
+
     document.body.addEventListener("input", (e) => {
-      if (e.target.closest("#refinance-form")) {
-        updateRefinancePreview();
-      } else if (e.target.id === "search-customers") {
+      if (e.target.id === "search-customers") {
         const term = e.target.value.toLowerCase();
         const filtered = window.allCustomers.active.filter((c) =>
           c.name.toLowerCase().includes(term)
         );
         const listEl = getEl("customers-list");
         if (listEl) {
-          populateCustomerLists(listEl, filtered, "active");
+          renderList(listEl, filtered, "active");
         }
       }
     });

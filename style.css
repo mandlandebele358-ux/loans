@@ -1028,6 +1028,9 @@ body {
   flex-wrap: wrap;
   gap: 1rem;
 }
+.card-header h3 {
+  margin-right: auto;
+}
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

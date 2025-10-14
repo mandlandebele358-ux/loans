@@ -517,41 +517,34 @@
       </div>
     </div>
 
-    <div class="modal" id="refinance-modal">
+    <div class="modal" id="new-loan-modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3 class="modal-title">Refinance Loan</h3>
+          <h3 class="modal-title">Add New Loan</h3>
           <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body">
-          <form id="refinance-form">
-            <input type="hidden" id="refinance-customer-id" />
-            <p>
-              Current outstanding balance:
-              <strong id="refinance-outstanding">₹0.00</strong>
-            </p>
-            <p>This balance will be carried over to the new loan.</p>
+          <form id="new-loan-form">
+            <input type="hidden" id="new-loan-customer-id" />
+            <p>Creating a new, independent loan for an existing customer.</p>
             <hr class="form-hr" />
             <div class="form-group">
-              <label for="refinance-new-amount"
-                >Additional Amount to Add (₹)</label
-              >
+              <label for="new-loan-principal">Principal Loan Amount (₹)</label>
               <input
                 type="number"
-                id="refinance-new-amount"
+                id="new-loan-principal"
                 class="form-control"
                 required
-                min="0"
-                value="0"
+                min="1"
               />
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="refinance-interest-rate"
-                  >New Monthly Interest Rate (%)</label
+                <label for="new-loan-interest-rate"
+                  >Monthly Interest Rate (%)</label
                 ><input
                   type="number"
-                  id="refinance-interest-rate"
+                  id="new-loan-interest-rate"
                   class="form-control"
                   required
                   min="0"
@@ -559,10 +552,8 @@
                 />
               </div>
               <div class="form-group">
-                <label for="refinance-frequency"
-                  >New Collection Frequency</label
-                >
-                <select id="refinance-frequency" class="form-control" required>
+                <label for="new-loan-frequency">Collection Frequency</label>
+                <select id="new-loan-frequency" class="form-control" required>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
@@ -570,21 +561,16 @@
               </div>
             </div>
             <div class="form-group">
-              <label for="refinance-end-date">New Loan End Date</label>
+              <label for="new-loan-end-date">New Loan End Date</label>
               <input
                 type="date"
-                id="refinance-end-date"
+                id="new-loan-end-date"
                 class="form-control"
                 required
               />
             </div>
-
-            <p class="summary-line">
-              New Principal will be:
-              <strong id="refinance-new-principal">₹0.00</strong>
-            </p>
             <div
-              id="refinance-installment-preview"
+              id="new-loan-installment-preview"
               class="installment-preview hidden"
             ></div>
           </form>
@@ -595,9 +581,9 @@
           </button>
           <button
             type="submit"
-            form="refinance-form"
+            form="new-loan-form"
             class="btn btn-primary"
-            id="refinance-modal-save"
+            id="new-loan-modal-save"
           >
             <span class="loading-spinner hidden"></span>
             <span>Create New Loan</span>
@@ -629,21 +615,6 @@
             id="confirmation-confirm-btn"
           >
             Confirm
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal" id="history-modal">
-      <div class="modal-content large">
-        <div class="modal-header">
-          <h3 class="modal-title">Loan History</h3>
-          <button class="modal-close">&times;</button>
-        </div>
-        <div class="modal-body" id="history-modal-body"></div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" data-close-modal>
-            Close
           </button>
         </div>
       </div>
