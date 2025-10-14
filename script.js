@@ -603,31 +603,45 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const showCustomerDetails = (customerId) => {
-    // This now just opens the modal. The actual content rendering is handled by renderLoanDetails.
-    const customer = window.allCustomers.active.find(
-      (c) => c.id === customerId
-    );
+    const customer = [
+      ...window.allCustomers.active,
+      ...window.allCustomers.settled,
+    ].find((c) => c.id === customerId);
     if (!customer) return;
 
-    const allLoansForCustomer = window.allCustomers.active
+    const allLoansForCustomer = [
+      ...window.allCustomers.active,
+      ...window.allCustomers.settled,
+    ]
       .filter((c) => c.name === customer.name)
-      .sort((a, b) => a.financeCount - b.financeCount);
+      .sort((a, b) => (a.financeCount || 1) - (b.financeCount || 1));
+
+    // Use a Set to ensure unique loans are displayed to prevent bugs
+    const uniqueLoans = [
+      ...new Map(allLoansForCustomer.map((item) => [item.id, item])).values(),
+    ];
 
     const switcherContainer = getEl("loan-switcher-container");
-    const switcherSelect = getEl("loan-switcher-select");
+    const customSelect = switcherContainer.querySelector(".custom-select");
+    const optionsContainer = customSelect.querySelector(".custom-options");
+    const triggerText = customSelect.querySelector(
+      ".custom-select-trigger span"
+    );
 
-    if (allLoansForCustomer.length > 1) {
+    if (uniqueLoans.length > 1) {
       switcherContainer.classList.remove("hidden");
-      switcherSelect.innerHTML = allLoansForCustomer
+      optionsContainer.innerHTML = uniqueLoans
         .map(
           (loan) =>
-            `<option value="${loan.id}" ${
+            `<div class="custom-option ${
               loan.id === customerId ? "selected" : ""
-            }>
-                Finance #${loan.financeCount || 1}
-            </option>`
+            }" data-value="${loan.id}">
+                Finance ${loan.financeCount || 1}
+            </div>`
         )
         .join("");
+      const currentLoan = uniqueLoans.find((l) => l.id === customerId);
+      triggerText.textContent = `Finance ${currentLoan.financeCount || 1}`;
     } else {
       switcherContainer.classList.add("hidden");
     }
@@ -637,9 +651,10 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const renderLoanDetails = (customerId) => {
-    const customer = window.allCustomers.active.find(
-      (c) => c.id === customerId
-    );
+    const customer = [
+      ...window.allCustomers.active,
+      ...window.allCustomers.settled,
+    ].find((c) => c.id === customerId);
     if (!customer) return;
 
     const modalBody = getEl("details-modal-body");
@@ -672,7 +687,6 @@ document.addEventListener("DOMContentLoaded", () => {
       (p) => p.status === "Due" || p.status === "Pending"
     );
 
-    // Logic to show refinance only on the latest loan
     const allLoansForThisCustomer = window.allCustomers.active.filter(
       (c) => c.name === customer.name
     );
@@ -680,12 +694,15 @@ document.addEventListener("DOMContentLoaded", () => {
       (a, b) => (b.financeCount || 1) - (a.financeCount || 1)
     )[0];
 
-    const refinanceButton =
-      customer.id === latestLoan.id
-        ? `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`
-        : "";
+    // Show refinance/settle buttons only if the loan is active
+    let actionButtons = "";
+    if (customer.status === "active") {
+      if (!latestLoan || customer.id === latestLoan.id) {
+        actionButtons += `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`;
+      }
+      actionButtons += `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`;
+    }
 
-    const settleButton = `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`;
     const hasHistory = customer.history && customer.history.length > 0;
     const historyButton = `<button class="btn btn-outline" id="view-history-btn" data-id="${
       customer.id
@@ -717,7 +734,7 @@ document.addEventListener("DOMContentLoaded", () => {
       schedule.length
     } Paid)</h4><div class="progress-bar"><div class="progress-bar-inner" style="width: ${progress}%;"></div></div></div><div class="loan-actions"><button class="btn btn-outline" id="edit-customer-info-btn" data-id="${
       customer.id
-    }"><i class="fas fa-edit"></i> Edit Info</button>${refinanceButton}${settleButton}${historyButton}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
+    }"><i class="fas fa-edit"></i> Edit Info</button>${actionButtons}${historyButton}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
       details.principal
     )}</span></div><div class="calc-result-item"><span>Total Interest Paid</span><span>${formatCurrency(
       totalInterestPaid
@@ -890,6 +907,34 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.addEventListener("click", async (e) => {
       const target = e.target;
       const button = target.closest("button");
+
+      // Custom Select Logic
+      const customSelect = target.closest(".custom-select");
+      if (customSelect) {
+        customSelect.classList.toggle("open");
+      } else if (!target.closest(".custom-select-wrapper")) {
+        document
+          .querySelectorAll(".custom-select.open")
+          .forEach((select) => select.classList.remove("open"));
+      }
+
+      const customOption = target.closest(".custom-option");
+      if (customOption) {
+        const selectWrapper = target.closest(".custom-select-wrapper");
+        const triggerText = selectWrapper.querySelector(
+          ".custom-select-trigger span"
+        );
+        triggerText.textContent = customOption.textContent.trim();
+        selectWrapper.querySelector(".custom-select").classList.remove("open");
+
+        // Remove selected class from sibling
+        const options = selectWrapper.querySelectorAll(".custom-option");
+        options.forEach((opt) => opt.classList.remove("selected"));
+        customOption.classList.add("selected");
+
+        renderLoanDetails(customOption.dataset.value);
+      }
+
       if (target.id === "forgot-password-link") {
         e.preventDefault();
         const email = prompt(
@@ -1723,9 +1768,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.body.addEventListener("change", (e) => {
-      if (e.target.id === "loan-switcher-select") {
-        renderLoanDetails(e.target.value);
-      } else if (e.target.id === "dark-mode-toggle") {
+      if (e.target.id === "dark-mode-toggle") {
         if (window.toggleDarkMode) window.toggleDarkMode();
       } else if (e.target.id === "import-backup-input") {
         const fileName = e.target.files[0]

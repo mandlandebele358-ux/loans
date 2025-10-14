@@ -29,7 +29,7 @@
       <div class="auth-card">
         <div class="auth-panel auth-panel-branding">
           <div class="auth-logo"><i class="fas fa-globe"></i></div>
-          <h2 class="branding-title">Global Finance Consultant</h2>
+          <h2 class="branding-title">GF Consultant</h2>
           <p class="branding-subtitle">
             Streamline your lending operations with precision and ease.
           </p>
@@ -91,7 +91,7 @@
         <div class="sidebar-header">
           <h2 class="ola">
             <i class="fas fa-globe"></i>
-            <span class="sidebar-brand-full">Global Finance Consultant</span>
+            <span class="sidebar-brand-full">GF Consultant</span>
             <span class="sidebar-brand-short">GFC</span>
           </h2>
         </div>
@@ -188,8 +188,17 @@
               class="loan-frequency-badge"
               id="details-modal-frequency"
             ></span>
-            <div id="loan-switcher-container" class="hidden">
-              <select id="loan-switcher-select" class="form-control"></select>
+            <div
+              id="loan-switcher-container"
+              class="custom-select-wrapper hidden"
+            >
+              <div class="custom-select">
+                <div class="custom-select-trigger">
+                  <span></span>
+                  <i class="fas fa-chevron-down"></i>
+                </div>
+                <div class="custom-options"></div>
+              </div>
             </div>
           </div>
           <button class="modal-close">&times;</button>
@@ -210,7 +219,7 @@
     </div>
 
     <div class="modal" id="customer-form-modal">
-      <div class="modal-content" style="max-width: 650px">
+      <div class="modal-content">
         <div class="modal-header">
           <h3 class="modal-title" id="customer-form-modal-title">
             Add Customer
@@ -425,7 +434,7 @@
     </div>
 
     <div class="modal" id="payment-modal">
-      <div class="modal-content" style="max-width: 480px">
+      <div class="modal-content">
         <div class="modal-header">
           <h3 class="modal-title">Record Payment</h3>
           <button class="modal-close">&times;</button>
@@ -509,7 +518,7 @@
     </div>
 
     <div class="modal" id="refinance-modal">
-      <div class="modal-content" style="max-width: 500px">
+      <div class="modal-content">
         <div class="modal-header">
           <h3 class="modal-title">Refinance Loan</h3>
           <button class="modal-close">&times;</button>
@@ -598,7 +607,7 @@
     </div>
 
     <div class="modal" id="confirmation-modal">
-      <div class="modal-content" style="max-width: 450px">
+      <div class="modal-content">
         <div class="modal-header">
           <h3 class="modal-title" id="confirmation-title">Are you sure?</h3>
           <button class="modal-close">&times;</button>

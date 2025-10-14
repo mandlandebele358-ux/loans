@@ -1443,6 +1443,20 @@ fieldset legend {
   transform: scale(0.95);
   opacity: 0;
 }
+/* Modal max-widths moved from inline styles */
+#customer-form-modal .modal-content {
+  max-width: 650px;
+}
+#payment-modal .modal-content {
+  max-width: 480px;
+}
+#refinance-modal .modal-content {
+  max-width: 500px;
+}
+#confirmation-modal .modal-content {
+  max-width: 450px;
+}
+
 .modal.show .modal-content {
   transform: scale(1);
   opacity: 1;
@@ -1464,23 +1478,7 @@ fieldset legend {
   gap: 1rem;
   flex-wrap: wrap;
 }
-#loan-switcher-container {
-  position: relative;
-}
-#loan-switcher-select {
-  padding: 0.3rem 2rem 0.3rem 1rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  background-color: var(--bg-main);
-  color: var(--text-dark);
-  border-radius: 999px;
-  border: 1px solid var(--border-color);
-  cursor: pointer;
-}
-#loan-switcher-select:focus {
-    box-shadow: 0 0 0 3px var(--primary-t-08);
-    border-color: var(--primary);
-}
+
 .loan-frequency-badge {
   font-size: 0.8rem;
   font-weight: 700;
@@ -2003,7 +2001,8 @@ input:checked + .slider:before {
   border-collapse: collapse;
   margin-top: 1rem;
 }
-.history-payment-table th, .history-payment-table td {
+.history-payment-table th,
+.history-payment-table td {
   border: 1px solid var(--border-color);
   padding: 0.5rem;
   font-size: 0.85rem;
@@ -2358,4 +2357,76 @@ html[data-theme="dark"] .history-card-footer .history-stat .value {
 
 .payment-pending-value {
   color: var(--danger);
+}
+
+/* Custom Select (Loan Switcher) Styles */
+.custom-select-wrapper {
+  position: relative;
+  user-select: none;
+  width: 150px;
+}
+.custom-select {
+  position: relative;
+}
+.custom-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background-color: var(--bg-main);
+  color: var(--text-dark);
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.custom-select-trigger:hover {
+  border-color: var(--primary);
+}
+.custom-select.open .custom-select-trigger {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-t-08);
+}
+.custom-select-trigger i {
+  margin-left: 0.5rem;
+  transition: transform 0.3s;
+}
+.custom-select.open .custom-select-trigger i {
+  transform: rotate(180deg);
+}
+.custom-options {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: all 0.3s;
+}
+.custom-select.open .custom-options {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.custom-option {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.9rem;
+}
+.custom-option:hover {
+  background-color: var(--primary-t-08);
+}
+.custom-option.selected {
+  background-color: var(--primary);
+  color: white;
+  font-weight: 600;
 }
