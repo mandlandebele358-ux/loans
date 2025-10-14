@@ -318,38 +318,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadAndRenderAll = async () => {
     if (!currentUser) return;
     try {
-      const [activeSnapshot, settledSnapshot, activitiesSnapshot] =
-        await Promise.all([
-          db
-            .collection("customers")
-            .where("owner", "==", currentUser.uid)
-            .where("status", "==", "active")
-            .orderBy("createdAt", "desc")
-            .get(),
+      const customerQuery = db
+        .collection("customers")
+        .where("owner", "==", currentUser.uid);
+      const [customerSnapshot, activitiesSnapshot] = await Promise.all([
+        customerQuery.orderBy("createdAt", "desc").get(),
+        db
+          .collection("activities")
+          .where("owner_uid", "==", currentUser.uid)
+          .orderBy("timestamp", "desc")
+          .limit(10)
+          .get(),
+      ]);
 
-          db
-            .collection("customers")
-            .where("owner", "==", currentUser.uid)
-            .where("status", "==", "settled")
-            .orderBy("createdAt", "desc")
-            .get(),
-
-          db
-            .collection("activities")
-            .where("owner_uid", "==", currentUser.uid)
-            .orderBy("timestamp", "desc")
-            .limit(10)
-            .get(),
-        ]);
-
-      window.allCustomers.active = activeSnapshot.docs.map((doc) => ({
+      const allDocs = customerSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      window.allCustomers.settled = settledSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+
+      window.allCustomers.active = allDocs.filter((c) => c.status === "active");
+      window.allCustomers.settled = allDocs.filter(
+        (c) => c.status === "settled" || c.status === "Refinanced"
+      );
+
       recentActivities = activitiesSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -615,13 +606,46 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const showCustomerDetails = (customerId) => {
-    const customer = [
-      ...window.allCustomers.active,
-      ...window.allCustomers.settled,
-    ].find((c) => c.id === customerId);
+    // This now just opens the modal. The actual content rendering is handled by renderLoanDetails.
+    const customer = window.allCustomers.active.find(
+      (c) => c.id === customerId
+    );
     if (!customer) return;
-    const modalBody = getEl("details-modal-body");
 
+    const allLoansForCustomer = window.allCustomers.active
+      .filter((c) => c.name === customer.name)
+      .sort((a, b) => a.financeCount - b.financeCount);
+
+    const switcherContainer = getEl("loan-switcher-container");
+    const switcherSelect = getEl("loan-switcher-select");
+
+    if (allLoansForCustomer.length > 1) {
+      switcherContainer.classList.remove("hidden");
+      switcherSelect.innerHTML = allLoansForCustomer
+        .map(
+          (loan) =>
+            `<option value="${loan.id}" ${
+              loan.id === customerId ? "selected" : ""
+            }>
+                Finance #${loan.financeCount || 1}
+            </option>`
+        )
+        .join("");
+    } else {
+      switcherContainer.classList.add("hidden");
+    }
+
+    renderLoanDetails(customerId);
+    getEl("customer-details-modal").classList.add("show");
+  };
+
+  const renderLoanDetails = (customerId) => {
+    const customer = window.allCustomers.active.find(
+      (c) => c.id === customerId
+    );
+    if (!customer) return;
+
+    const modalBody = getEl("details-modal-body");
     getEl("details-modal-title").textContent = `Details: ${customer.name}`;
     const frequencyBadge = getEl("details-modal-frequency");
     if (frequencyBadge && customer.loanDetails?.frequency) {
@@ -634,28 +658,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!customer.loanDetails || !customer.paymentSchedule) {
       modalBody.innerHTML = `<p style="padding: 2rem; text-align: center;">This customer has incomplete or outdated loan data.</p>`;
-      getEl("customer-details-modal").classList.add("show");
       return;
     }
 
     const { paymentSchedule: schedule, loanDetails: details } = customer;
 
     const totalInterest = calculateTotalInterest(details);
-
     const totalPaid = schedule.reduce((sum, p) => sum + p.amountPaid, 0);
     const totalRepayable = details.principal + totalInterest;
     const remainingToCollect = totalRepayable - totalPaid;
     const paidInstallments = schedule.filter((p) => p.status === "Paid").length;
-    const progress = (paidInstallments / schedule.length) * 100;
+    const progress =
+      schedule.length > 0 ? (paidInstallments / schedule.length) * 100 : 0;
     const totalInterestPaid = Math.max(0, totalPaid - details.principal);
     const nextDue = schedule.find(
       (p) => p.status === "Due" || p.status === "Pending"
     );
 
-    const settleButton =
-      customer.status === "active"
-        ? `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`
+    // Logic to show refinance only on the latest loan
+    const allLoansForThisCustomer = window.allCustomers.active.filter(
+      (c) => c.name === customer.name
+    );
+    const latestLoan = allLoansForThisCustomer.sort(
+      (a, b) => (b.financeCount || 1) - (a.financeCount || 1)
+    )[0];
+
+    const refinanceButton =
+      customer.id === latestLoan.id
+        ? `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`
         : "";
+
+    const settleButton = `<button class="btn btn-success" id="settle-loan-btn" data-id="${customer.id}"><i class="fas fa-check-circle"></i> Settle Loan</button>`;
     const hasHistory = customer.history && customer.history.length > 0;
     const historyButton = `<button class="btn btn-outline" id="view-history-btn" data-id="${
       customer.id
@@ -687,11 +720,7 @@ document.addEventListener("DOMContentLoaded", () => {
       schedule.length
     } Paid)</h4><div class="progress-bar"><div class="progress-bar-inner" style="width: ${progress}%;"></div></div></div><div class="loan-actions"><button class="btn btn-outline" id="edit-customer-info-btn" data-id="${
       customer.id
-    }"><i class="fas fa-edit"></i> Edit Info</button>${
-      customer.status === "active"
-        ? `<button class="btn btn-primary" id="refinance-loan-btn" data-id="${customer.id}"><i class="fas fa-plus-circle"></i> Refinance</button>`
-        : ""
-    }${settleButton}${historyButton}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
+    }"><i class="fas fa-edit"></i> Edit Info</button>${refinanceButton}${settleButton}${historyButton}</div></div><div class="emi-schedule-panel"><div class="emi-table-container"><table class="emi-table"><thead><tr><th>#</th><th>Due Date</th><th>Amount Due</th><th>Amount Paid</th><th>Status</th><th class="no-pdf">Action</th></tr></thead><tbody id="emi-schedule-body-details"></tbody></table></div><div class="loan-summary-box"><h4>Loan Summary</h4><div class="calc-result-item"><span>Principal Amount</span><span>${formatCurrency(
       details.principal
     )}</span></div><div class="calc-result-item"><span>Total Interest Paid</span><span>${formatCurrency(
       totalInterestPaid
@@ -715,7 +744,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const isOverdue =
         new Date(inst.dueDate) < today &&
         (inst.status === "Due" || inst.status === "Pending");
-
       let statusClass = inst.status.toLowerCase();
       let statusText = inst.status.toUpperCase();
       if (isOverdue) {
@@ -725,7 +753,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (inst.status === "Pending") {
         statusText += ` (${formatCurrency(inst.pendingAmount)} due)`;
       }
-
       let actionButtons = "";
       if (
         customer.status === "active" &&
@@ -736,7 +763,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (customer.status === "active" && inst.amountPaid > 0) {
         actionButtons += `<button class="btn btn-outline btn-sm record-payment-btn" data-installment="${inst.installment}" data-id="${customer.id}">Edit</button>`;
       }
-
       tr.innerHTML = `<td>${inst.installment}</td><td>${
         inst.dueDate
       }</td><td>${formatCurrency(inst.amountDue)}</td><td>${formatCurrency(
@@ -744,8 +770,6 @@ document.addEventListener("DOMContentLoaded", () => {
       )}</td><td><span class="emi-status status-${statusClass}">${statusText}</span></td><td class="no-pdf">${actionButtons}</td>`;
       emiTableBody.appendChild(tr);
     });
-
-    getEl("customer-details-modal").classList.add("show");
   };
 
   auth.onAuthStateChanged(async (user) => {
@@ -794,6 +818,51 @@ document.addEventListener("DOMContentLoaded", () => {
       const installmentAmount = totalRepayable / n;
 
       previewDiv.innerHTML = `<p>Calculated: <strong>${n} installments</strong> of <strong>${formatCurrency(
+        installmentAmount
+      )}</strong> each.</p>`;
+      previewDiv.classList.remove("error");
+      previewDiv.classList.remove("hidden");
+    } catch (error) {
+      previewDiv.innerHTML = `<p>${error.message}</p>`;
+      previewDiv.classList.add("error");
+      previewDiv.classList.remove("hidden");
+    }
+  }
+
+  function updateRefinancePreview() {
+    const previewDiv = getEl("refinance-installment-preview");
+    const outstanding = parseFloat(
+      getEl("refinance-outstanding").textContent.replace(/[^0-9.-]+/g, "")
+    );
+    const newAmt = parseFloat(getEl("refinance-new-amount").value) || 0;
+    const p = outstanding + newAmt;
+    const r = parseFloat(getEl("refinance-interest-rate").value);
+    const freq = getEl("refinance-frequency").value;
+    const firstDate = new Date().toISOString().split("T")[0];
+    const endDate = getEl("refinance-end-date").value;
+
+    getEl("refinance-new-principal").textContent = formatCurrency(p);
+
+    if (!p || !r || !firstDate || !endDate) {
+      previewDiv.classList.add("hidden");
+      return;
+    }
+
+    try {
+      const n = calculateInstallments(firstDate, endDate, freq);
+      if (n <= 0) {
+        throw new Error("Invalid date range for the selected frequency.");
+      }
+      const totalInterest = calculateTotalInterest({
+        principal: p,
+        interestRate: r,
+        installments: n,
+        frequency: freq,
+      });
+      const totalRepayable = p + totalInterest;
+      const installmentAmount = totalRepayable / n;
+
+      previewDiv.innerHTML = `<p>New Loan: <strong>${n} installments</strong> of <strong>${formatCurrency(
         installmentAmount
       )}</strong> each.</p>`;
       previewDiv.classList.remove("error");
@@ -1167,6 +1236,7 @@ document.addEventListener("DOMContentLoaded", () => {
           getEl("refinance-new-principal").textContent =
             formatCurrency(outstanding);
           getEl("refinance-new-amount").value = 0;
+          getEl("refinance-installment-preview").classList.add("hidden");
           getEl("refinance-modal").classList.add("show");
         } else if (button.id === "export-active-btn") {
           exportToExcel(
@@ -1490,26 +1560,46 @@ document.addEventListener("DOMContentLoaded", () => {
           const customerRef = db.collection("customers").doc(customerId);
           const doc = await customerRef.get();
           if (!doc.exists) throw new Error("Customer not found");
-          const data = doc.data();
-          const oldLoanDetails = data.loanDetails;
 
+          const oldData = doc.data();
+
+          // Archive the old loan by updating its status to "Refinanced"
+          const historyRecord = {
+            loanDetails: oldData.loanDetails,
+            paymentSchedule: oldData.paymentSchedule,
+            settledDate: new Date().toISOString().split("T")[0],
+            reason: "Refinanced",
+          };
+          const updatedHistory = oldData.history
+            ? [...oldData.history, historyRecord]
+            : [historyRecord];
+
+          await customerRef.update({
+            status: "Refinanced",
+            history: updatedHistory,
+          });
+
+          // Create a brand new loan
           const newAmount = parseFloat(getEl("refinance-new-amount").value);
           const newEndDate = getEl("refinance-end-date").value;
           const newStartDate = new Date().toISOString().split("T")[0];
+          const newRate = parseFloat(getEl("refinance-interest-rate").value);
+          const newFrequency = getEl("refinance-frequency").value;
 
-          const totalInterest = calculateTotalInterest(oldLoanDetails);
-          const totalPaid = data.paymentSchedule.reduce(
+          if (!newEndDate || isNaN(newRate) || !newFrequency) {
+            throw new Error("Please fill all fields for the new loan.");
+          }
+
+          const totalInterestOld = calculateTotalInterest(oldData.loanDetails);
+          const totalPaidOld = oldData.paymentSchedule.reduce(
             (sum, p) => sum + p.amountPaid,
             0
           );
-          const totalRepayable = oldLoanDetails.principal + totalInterest;
-          const outstanding = totalRepayable - totalPaid;
+          const totalRepayableOld =
+            oldData.loanDetails.principal + totalInterestOld;
+          const outstanding = totalRepayableOld - totalPaidOld;
 
           const newPrincipal = outstanding + newAmount;
-
-          // Use details from the original loan, but get new tenure from dates
-          const newRate = oldLoanDetails.interestRate;
-          const newFrequency = oldLoanDetails.frequency;
           const newTenure = calculateInstallments(
             newStartDate,
             newEndDate,
@@ -1524,17 +1614,10 @@ document.addEventListener("DOMContentLoaded", () => {
             newFrequency
           );
 
-          const history = data.history || [];
-          history.push({
-            loanDetails: data.loanDetails,
-            paymentSchedule: data.paymentSchedule,
-            settledDate: newStartDate,
-            reason: "Refinanced",
-          });
+          const newFinanceCount = (oldData.financeCount || 1) + 1;
 
-          const newFinanceCount = (data.financeCount || 1) + 1;
-
-          await customerRef.update({
+          const newLoanData = {
+            ...oldData, // Copy all personal details like name, phone, etc.
             loanDetails: {
               principal: newPrincipal,
               interestRate: newRate,
@@ -1545,12 +1628,17 @@ document.addEventListener("DOMContentLoaded", () => {
               type: "simple_interest",
             },
             paymentSchedule: newSchedule,
-            history,
+            history: updatedHistory, // Carry over the full history
             financeCount: newFinanceCount,
-          });
+            status: "active",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(), // Give it a new timestamp to appear at top
+          };
+          delete newLoanData.id; // remove old id before creating new doc
+
+          await db.collection("customers").add(newLoanData);
 
           await logActivity("LOAN_REFINANCED", {
-            customerName: data.name,
+            customerName: oldData.name,
             amount: newPrincipal,
           });
           showToast(
@@ -1623,8 +1711,24 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
+    const refinanceDetailFields = [
+      "refinance-new-amount",
+      "refinance-interest-rate",
+      "refinance-frequency",
+      "refinance-end-date",
+    ];
+    refinanceDetailFields.forEach((id) => {
+      const element = getEl(id);
+      if (element) {
+        element.addEventListener("input", updateRefinancePreview);
+        element.addEventListener("change", updateRefinancePreview);
+      }
+    });
+
     document.body.addEventListener("change", (e) => {
-      if (e.target.id === "dark-mode-toggle") {
+      if (e.target.id === "loan-switcher-select") {
+        renderLoanDetails(e.target.value);
+      } else if (e.target.id === "dark-mode-toggle") {
         if (window.toggleDarkMode) window.toggleDarkMode();
       } else if (e.target.id === "import-backup-input") {
         const fileName = e.target.files[0]
@@ -1645,14 +1749,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.body.addEventListener("input", (e) => {
       if (e.target.closest("#refinance-form")) {
-        const out =
-          parseFloat(
-            getEl("refinance-outstanding").textContent.replace(/[^0-9.-]+/g, "")
-          ) || 0;
-        const newAmt = parseFloat(getEl("refinance-new-amount").value) || 0;
-        getEl("refinance-new-principal").textContent = formatCurrency(
-          out + newAmt
-        );
+        updateRefinancePreview();
       } else if (e.target.id === "search-customers") {
         const term = e.target.value.toLowerCase();
         const filtered = window.allCustomers.active.filter((c) =>
@@ -1660,44 +1757,7 @@ document.addEventListener("DOMContentLoaded", () => {
         );
         const listEl = getEl("customers-list");
         if (listEl) {
-          const renderList = (element, data, type) => {
-            if (!element) return;
-            element.innerHTML = "";
-            if (data.length === 0) {
-              element.innerHTML = `<li class="activity-item" style="cursor:default;"><p>No customers found.</p></li>`;
-              return;
-            }
-            data.forEach((c) => {
-              const li = document.createElement("li");
-              li.className = "customer-item";
-              if (!c.loanDetails || !c.paymentSchedule) {
-                li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details"><span>Data format error</span></div></div><div class="customer-actions"><span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
-                element.appendChild(li);
-                return;
-              }
-              const financeCount = c.financeCount || 1;
-              const financeBadge =
-                financeCount > 1
-                  ? `<span class="finance-count-badge">Finance #${financeCount}</span>`
-                  : "";
-
-              const paidInstallments = c.paymentSchedule.filter(
-                (p) => p.status === "Paid"
-              ).length;
-              const detailsHtml = `<span>Due: ${formatCurrency(
-                c.paymentSchedule[0]?.amountDue
-              )}</span><span>Paid: ${paidInstallments}/${
-                c.paymentSchedule.length
-              }</span>`;
-              const deleteButton =
-                type === "settled"
-                  ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
-                  : "";
-              li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name} ${financeBadge}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
-              element.appendChild(li);
-            });
-          };
-          renderList(listEl, filtered, "active");
+          populateCustomerLists(listEl, filtered, "active");
         }
       }
     });
