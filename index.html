@@ -520,26 +520,68 @@
             </p>
             <p>This balance will be carried over to the new loan.</p>
             <hr class="form-hr" />
-            <div class="form-group">
-              <label for="refinance-new-amount"
-                >Additional Amount to Add (₹)</label
-              >
-              <input
-                type="number"
-                id="refinance-new-amount"
-                class="form-control"
-                required
-                min="0"
-                value="0"
-              />
-            </div>
+            <fieldset>
+              <legend>New Loan Terms</legend>
+              <div class="form-group">
+                <label for="refinance-new-amount"
+                  >Additional Amount to Add (₹)</label
+                >
+                <input
+                  type="number"
+                  id="refinance-new-amount"
+                  class="form-control"
+                  required
+                  min="0"
+                  value="0"
+                />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="refinance-new-rate"
+                    >New Monthly Interest Rate (%)</label
+                  >
+                  <input
+                    type="number"
+                    id="refinance-new-rate"
+                    class="form-control"
+                    required
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="refinance-collection-frequency"
+                    >Collection Frequency</label
+                  >
+                  <select
+                    id="refinance-collection-frequency"
+                    class="form-control"
+                    required
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="refinance-loan-end-date">New Loan End Date</label>
+                <input
+                  type="date"
+                  id="refinance-loan-end-date"
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div
+                id="refinance-installment-preview"
+                class="installment-preview hidden"
+              ></div>
+            </fieldset>
+
             <p class="summary-line">
               New Principal will be:
               <strong id="refinance-new-principal">₹0.00</strong>
-            </p>
-            <p class="setting-description">
-              The new loan will use the same interest rate, tenure, and
-              frequency as the original loan, starting from today.
             </p>
           </form>
         </div>
@@ -589,9 +631,9 @@
     </div>
 
     <div class="modal" id="history-modal">
-      <div class="modal-content">
+      <div class="modal-content large">
         <div class="modal-header">
-          <h3 class="modal-title">Refinance History</h3>
+          <h3 class="modal-title">Loan History</h3>
           <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body" id="history-modal-body"></div>

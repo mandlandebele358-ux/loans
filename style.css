@@ -1352,9 +1352,20 @@ fieldset legend {
 .customer-info {
   width: 100%;
 }
-.customer-info .customer-name {
+.customer-name {
   font-weight: 600;
   font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.finance-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background-color: var(--primary-t-08);
+  color: var(--primary);
 }
 .customer-info .customer-details {
   display: flex;
@@ -1977,6 +1988,22 @@ input:checked + .slider:before {
 .history-stat .value {
   font-size: 1.2rem;
   font-weight: 600;
+}
+.history-payment-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.history-payment-table th,
+.history-payment-table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+}
+.history-payment-table th {
+  font-weight: 600;
+  background-color: var(--bg-main);
 }
 .history-card-footer {
   background-color: var(--primary-t-08);

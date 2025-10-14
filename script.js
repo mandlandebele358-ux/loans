@@ -42,10 +42,19 @@ const calculateTotalInterest = (loanDetails) => {
 const formatCurrency = (amount) =>
   `₹${Math.round(Number(amount || 0)).toLocaleString("en-IN")}`;
 
-const openWhatsApp = (customer) => {
+const openWhatsApp = async (customer) => {
   if (!customer || (!customer.whatsapp && !customer.phone)) {
     alert("Customer's WhatsApp number is not available.");
     return;
+  }
+
+  // Automatically download the PDF first
+  try {
+    await generateAndDownloadPDF(customer.id);
+  } catch (error) {
+    console.error("Failed to generate PDF before sending WhatsApp:", error);
+    // Continue to open WhatsApp even if PDF fails, but notify the user
+    alert("Could not generate the PDF, but you can still send the message.");
   }
 
   let phone = (customer.whatsapp || customer.phone).replace(/\D/g, "");
@@ -222,6 +231,7 @@ document.addEventListener("DOMContentLoaded", () => {
         amountPaid: 0,
         pendingAmount: +installmentAmount.toFixed(2),
         status: "Due",
+        paidDate: null,
       });
     }
     return schedule;
@@ -455,6 +465,12 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
+        const financeCount = c.financeCount || 1;
+        const financeBadge =
+          financeCount > 1
+            ? `<span class="finance-count-badge">Finance #${financeCount}</span>`
+            : "";
+
         const totalPaid = c.paymentSchedule.reduce(
           (sum, p) => sum + p.amountPaid,
           0
@@ -481,7 +497,7 @@ document.addEventListener("DOMContentLoaded", () => {
           type === "settled"
             ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
             : "";
-        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
+        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name} ${financeBadge}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
         element.appendChild(li);
       });
     };
@@ -976,25 +992,56 @@ document.addEventListener("DOMContentLoaded", () => {
               customer.history
                 .map((record, index) => {
                   const details = record.loanDetails;
-                  const totalPaidOnLoan = record.paymentSchedule.reduce(
-                    (sum, p) => sum + p.amountPaid,
-                    0
+                  const paidInstallments = record.paymentSchedule.filter(
+                    (p) => p.status === "Paid" || p.status === "Pending"
                   );
-                  return `<div class="history-card"><div class="history-card-header"><h3>Previous Loan #${
-                    customer.history.length - index
-                  }</h3><span class="date">Refinanced on: ${
-                    record.settledDate
-                  }</span></div><div class="history-card-body"><div class="history-stat"><span class="label">Principal</span><span class="value">${formatCurrency(
-                    details.principal
-                  )}</span></div><div class="history-stat"><span class="label">Interest Rate</span><span class="value">${
-                    details.interestRate
-                  }%</span></div><div class="history-stat"><span class="label">Installments</span><span class="value">${
-                    details.installments
-                  }</span></div><div class="history-stat"><span class="label">Per Installment</span><span class="value">${formatCurrency(
-                    record.paymentSchedule[0]?.amountDue
-                  )}</span></div></div><div class="history-card-footer"><div class="history-stat"><span class="label">Total Paid on this Loan</span><span class="value">${formatCurrency(
-                    totalPaidOnLoan
-                  )}</span></div></div></div>`;
+
+                  const paymentsTable =
+                    paidInstallments.length > 0
+                      ? `
+                  <table class="history-payment-table">
+                    <thead><tr><th>#</th><th>Amount Paid</th><th>Date Paid</th></tr></thead>
+                    <tbody>
+                      ${paidInstallments
+                        .map(
+                          (p) => `
+                        <tr>
+                          <td>${p.installment}</td>
+                          <td>${formatCurrency(p.amountPaid)}</td>
+                          <td>${
+                            p.paidDate
+                              ? new Date(p.paidDate).toLocaleString()
+                              : "N/A"
+                          }</td>
+                        </tr>
+                      `
+                        )
+                        .join("")}
+                    </tbody>
+                  </table>
+                `
+                      : "<p>No payments were recorded for this loan.</p>";
+
+                  return `<div class="history-card">
+                          <div class="history-card-header">
+                            <h3>Finance #${customer.history.length - index}</h3>
+                            <span class="date">Settled on: ${
+                              record.settledDate
+                            }</span>
+                          </div>
+                          <div class="history-card-body">
+                            <div class="history-stat"><span class="label">Principal</span><span class="value">${formatCurrency(
+                              details.principal
+                            )}</span></div>
+                            <div class="history-stat"><span class="label">Interest Rate</span><span class="value">${
+                              details.interestRate
+                            }%</span></div>
+                            <div class="history-stat"><span class="label">Installments</span><span class="value">${
+                              details.installments
+                            }</span></div>
+                          </div>
+                          ${paymentsTable}
+                        </div>`;
                 })
                 .join("") || "<p>No history found.</p>";
             getEl("history-modal").classList.add("show");
@@ -1331,6 +1378,7 @@ document.addEventListener("DOMContentLoaded", () => {
             customerData.createdAt =
               firebase.firestore.FieldValue.serverTimestamp();
             customerData.status = "active";
+            customerData.financeCount = 1; // First loan
 
             toggleButtonLoading(saveBtn, true, "Saving Customer...");
             await db.collection("customers").add(customerData);
@@ -1375,6 +1423,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const pending = installment.amountDue - amountPaid;
           installment.amountPaid = amountPaid;
           installment.pendingAmount = pending;
+          installment.paidDate = new Date().toISOString(); // Timestamp the payment
 
           if (pending <= 0.001) {
             installment.status = "Paid";
@@ -1383,6 +1432,7 @@ document.addEventListener("DOMContentLoaded", () => {
             installment.status = "Pending";
           } else {
             installment.status = "Due";
+            installment.paidDate = null; // No payment, so no date
           }
 
           await db
@@ -1444,6 +1494,8 @@ document.addEventListener("DOMContentLoaded", () => {
           const oldLoanDetails = data.loanDetails;
 
           const newAmount = parseFloat(getEl("refinance-new-amount").value);
+          const newEndDate = getEl("refinance-end-date").value;
+          const newStartDate = new Date().toISOString().split("T")[0];
 
           const totalInterest = calculateTotalInterest(oldLoanDetails);
           const totalPaid = data.paymentSchedule.reduce(
@@ -1454,12 +1506,15 @@ document.addEventListener("DOMContentLoaded", () => {
           const outstanding = totalRepayable - totalPaid;
 
           const newPrincipal = outstanding + newAmount;
-          const newStartDate = new Date().toISOString().split("T")[0];
 
-          // Use details from the original loan
+          // Use details from the original loan, but get new tenure from dates
           const newRate = oldLoanDetails.interestRate;
-          const newTenure = oldLoanDetails.installments;
           const newFrequency = oldLoanDetails.frequency;
+          const newTenure = calculateInstallments(
+            newStartDate,
+            newEndDate,
+            newFrequency
+          );
 
           const newSchedule = generateSimpleInterestSchedule(
             newPrincipal,
@@ -1477,6 +1532,8 @@ document.addEventListener("DOMContentLoaded", () => {
             reason: "Refinanced",
           });
 
+          const newFinanceCount = (data.financeCount || 1) + 1;
+
           await customerRef.update({
             loanDetails: {
               principal: newPrincipal,
@@ -1489,13 +1546,18 @@ document.addEventListener("DOMContentLoaded", () => {
             },
             paymentSchedule: newSchedule,
             history,
+            financeCount: newFinanceCount,
           });
 
           await logActivity("LOAN_REFINANCED", {
             customerName: data.name,
             amount: newPrincipal,
           });
-          showToast("success", "Loan Refinanced", "New schedule created.");
+          showToast(
+            "success",
+            "Loan Refinanced",
+            `New Finance #${newFinanceCount} created.`
+          );
           getEl("refinance-modal").classList.remove("show");
           getEl("customer-details-modal").classList.remove("show");
           await loadAndRenderAll();
@@ -1557,6 +1619,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const element = getEl(id);
       if (element) {
         element.addEventListener("input", updateInstallmentPreview);
+        element.addEventListener("change", updateInstallmentPreview);
       }
     });
 
@@ -1612,6 +1675,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 element.appendChild(li);
                 return;
               }
+              const financeCount = c.financeCount || 1;
+              const financeBadge =
+                financeCount > 1
+                  ? `<span class="finance-count-badge">Finance #${financeCount}</span>`
+                  : "";
+
               const paidInstallments = c.paymentSchedule.filter(
                 (p) => p.status === "Paid"
               ).length;
@@ -1624,7 +1693,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 type === "settled"
                   ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
                   : "";
-              li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
+              li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name} ${financeBadge}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
               element.appendChild(li);
             });
           };
