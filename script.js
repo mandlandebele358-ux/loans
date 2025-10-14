@@ -457,10 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const financeCount = c.financeCount || 1;
-        const financeBadge =
-          financeCount > 1
-            ? `<span class="finance-count-badge">Finance #${financeCount}</span>`
-            : "";
+        const financeBadge = `<span class="finance-count-badge">${financeCount}</span>`;
 
         const totalPaid = c.paymentSchedule.reduce(
           (sum, p) => sum + p.amountPaid,
@@ -472,7 +469,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ).length;
 
         const detailsHtml =
-          type === "settled"
+          type === "settled" || type === "Refinanced"
             ? `<span>Principal: ${formatCurrency(
                 c.loanDetails.principal
               )}</span><span class="list-profit-display success">Interest: ${formatCurrency(
@@ -488,7 +485,7 @@ document.addEventListener("DOMContentLoaded", () => {
           type === "settled"
             ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
             : "";
-        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name} ${financeBadge}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
+        li.innerHTML = `<div class="customer-info" data-id="${c.id}"><div class="customer-name">${c.name}</div><div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${financeBadge}${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
         element.appendChild(li);
       });
     };

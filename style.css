@@ -1352,20 +1352,25 @@ fieldset legend {
 .customer-info {
   width: 100%;
 }
-.customer-name {
+.customer-info .customer-name {
   font-weight: 600;
   font-size: 1.1rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
-.finance-badge {
+.finance-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.75rem;
   font-weight: 700;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   background-color: var(--primary-t-08);
   color: var(--primary);
+  border: 1px solid var(--primary);
 }
 .customer-info .customer-details {
   display: flex;
@@ -1385,7 +1390,7 @@ fieldset legend {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 .customer-actions .view-details-prompt {
   font-size: 0.85rem;
@@ -1458,6 +1463,23 @@ fieldset legend {
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
+}
+#loan-switcher-container {
+  position: relative;
+}
+#loan-switcher-select {
+  padding: 0.3rem 2rem 0.3rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background-color: var(--bg-main);
+  color: var(--text-dark);
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+}
+#loan-switcher-select:focus {
+    box-shadow: 0 0 0 3px var(--primary-t-08);
+    border-color: var(--primary);
 }
 .loan-frequency-badge {
   font-size: 0.8rem;
@@ -1976,6 +1998,20 @@ input:checked + .slider:before {
   gap: 1.5rem;
   padding: 1.5rem;
 }
+.history-payment-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.history-payment-table th, .history-payment-table td {
+  border: 1px solid var(--border-color);
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  text-align: left;
+}
+.history-payment-table th {
+  background-color: var(--bg-main);
+}
 .history-stat {
   display: flex;
   flex-direction: column;
@@ -1988,22 +2024,6 @@ input:checked + .slider:before {
 .history-stat .value {
   font-size: 1.2rem;
   font-weight: 600;
-}
-.history-payment-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-}
-.history-payment-table th,
-.history-payment-table td {
-  padding: 0.5rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 0.85rem;
-}
-.history-payment-table th {
-  font-weight: 600;
-  background-color: var(--bg-main);
 }
 .history-card-footer {
   background-color: var(--primary-t-08);
