@@ -366,34 +366,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  const populatePageContent = (stats) => {
-    getEl(
-      "dashboard-section"
-    ).innerHTML = `<div class="stats-container"><div class="stat-card"><div class="stat-title">Total Principal</div><div class="stat-value">${formatCurrency(
-      stats.totalPrincipal
-    )}</div></div><div class="stat-card"><div class="stat-title">Outstanding</div><div class="stat-value">${formatCurrency(
-      stats.totalOutstanding
-    )}</div></div><div class="stat-card"><div class="stat-title">Interest Earned</div><div class="stat-value">${formatCurrency(
-      stats.totalInterest
-    )}</div></div><div class="stat-card"><div class="stat-title">Active Loans</div><div class="stat-value">${
-      stats.activeLoanCount
-    }</div></div></div><div class="dashboard-grid"><div class="form-card chart-card"><h3 >Portfolio Overview</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div><div class="form-card chart-card grid-col-span-2"><h3 >Profit Over Time <div class="chart-controls" id="profit-chart-controls"><button class="btn btn-sm btn-outline active" data-frame="monthly">Month</button><button class="btn btn-sm btn-outline" data-frame="yearly">Year</button></div></h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div><div class="form-card"><h3><i class="fas fa-clock" style="color:var(--primary)"></i> Upcoming Installments</h3><div id="upcoming-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Overdue Installments</h3><div id="overdue-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-history"></i> Recent Activity <button class="btn btn-danger btn-sm" id="clear-all-activities-btn" title="Clear all activities"><i class="fas fa-trash"></i></button></h3><div id="recent-activity-container" class="activity-container"></div></div></div>`;
-    getEl(
-      "calculator-section"
-    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;"><div class="form-group"><label for="calc-rate">Monthly Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="collection-frequency-calc">Collection Frequency</label><select id="collection-frequency-calc" class="form-control" required><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly" selected>Monthly</option></select></div><div class="form-group"><label for="calc-tenure">Number of Installments</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 12" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
-    getEl("settings-section").innerHTML = `<div class="settings-grid">
-        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-shield-alt"></i><h3>Security</h3></div><div class="setting-card-body"><p class="setting-description">Manage your account security settings.</p><form id="change-password-form"><div class="form-group"><label for="current-password">Current Password</label><input type="password" id="current-password" class="form-control" required/></div><div class="form-row"><div class="form-group"><label for="new-password">New Password</label><input type="password" id="new-password" class="form-control" required/></div><div class="form-group"><label for="confirm-password">Confirm New Password</label><input type="password" id="confirm-password" class="form-control" required/></div></div><button id="change-password-btn" type="submit" class="btn btn-primary"><span class="loading-spinner hidden"></span><span>Update Password</span></button></form></div></div>
-        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-palette"></i><h3>Appearance</h3></div><div class="setting-card-body"><p class="setting-description">Customize the look and feel of the application.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-moon"></i><span>Dark Mode</span></div><div class="setting-control"><label class="switch"><input type="checkbox" id="dark-mode-toggle" /><span class="slider round"></span></label></div></div></div></div>
-        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-database"></i><h3>Data Management</h3></div><div class="setting-card-body"><p class="setting-description">Backup your data or restore from a file.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-download"></i><span>Export Data</span></div><div class="setting-control"><button class="btn btn-outline" id="export-backup-btn">Download Backup</button></div></div><hr class="form-hr"><div class="setting-item column"><div class="setting-label"><i class="fas fa-upload"></i><span>Import Data</span></div><div class="import-controls"><input type="file" id="import-backup-input" accept=".json" class="hidden"><label for="import-backup-input" class="btn btn-outline"><i class="fas fa-file-import"></i> Choose File</label><span id="file-name-display" class="file-name">No file chosen</span></div><p class="warning-text"><i class="fas fa-exclamation-triangle"></i> This will overwrite all current data.</p><button class="btn btn-danger" id="import-backup-btn">Import & Overwrite</button></div></div></div>
-        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-user-cog"></i><h3>Account</h3></div><div class="setting-card-body"><p class="setting-description">Log out from your current session.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-sign-out-alt"></i><span>Logout</span></div><div class="setting-control"><button class="btn btn-outline" id="logout-settings-btn">Logout Now</button></div></div></div></div>
-    </div>`;
-
-    populateCustomerLists();
-    populateTodaysCollection();
-    renderUpcomingAndOverdueEmis(window.allCustomers.active);
-    renderActivityLog();
-  };
-
   const renderActivityLog = () => {
     const container = getEl("recent-activity-container");
     if (!container) return;
@@ -434,7 +406,35 @@ document.addEventListener("DOMContentLoaded", () => {
     container.innerHTML = `<ul class="activity-list">${activityHTML}</ul>`;
   };
 
-  const renderList = (element, data, type) => {
+  const populatePageContent = (stats) => {
+    getEl(
+      "dashboard-section"
+    ).innerHTML = `<div class="stats-container"><div class="stat-card"><div class="stat-title">Total Principal</div><div class="stat-value">${formatCurrency(
+      stats.totalPrincipal
+    )}</div></div><div class="stat-card"><div class="stat-title">Outstanding</div><div class="stat-value">${formatCurrency(
+      stats.totalOutstanding
+    )}</div></div><div class="stat-card"><div class="stat-title">Interest Earned</div><div class="stat-value">${formatCurrency(
+      stats.totalInterest
+    )}</div></div><div class="stat-card"><div class="stat-title">Active Loans</div><div class="stat-value">${
+      stats.activeLoanCount
+    }</div></div></div><div class="dashboard-grid"><div class="form-card chart-card"><h3 >Portfolio Overview</h3><div class="chart-container"><canvas id="portfolioChart"></canvas></div></div><div class="form-card chart-card grid-col-span-2"><h3 >Profit Over Time <div class="chart-controls" id="profit-chart-controls"><button class="btn btn-sm btn-outline active" data-frame="monthly">Month</button><button class="btn btn-sm btn-outline" data-frame="yearly">Year</button></div></h3><div class="chart-container"><canvas id="profitChart"></canvas></div></div><div class="form-card"><h3><i class="fas fa-clock" style="color:var(--primary)"></i> Upcoming Installments</h3><div id="upcoming-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> Overdue Installments</h3><div id="overdue-emi-container" class="activity-container"></div></div><div class="form-card"><h3><i class="fas fa-history"></i> Recent Activity <button class="btn btn-danger btn-sm" id="clear-all-activities-btn" title="Clear all activities"><i class="fas fa-trash"></i></button></h3><div id="recent-activity-container" class="activity-container"></div></div></div>`;
+    getEl(
+      "calculator-section"
+    ).innerHTML = `<div class="form-card"><h3><i class="fas fa-calculator"></i> Simple Interest Loan Calculator</h3><form id="emi-calculator-form"><div class="form-group"><label for="calc-principal">Loan Amount (₹)</label><input type="number" id="calc-principal" class="form-control" placeholder="e.g., 50000" required /></div><div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;"><div class="form-group"><label for="calc-rate">Monthly Interest Rate (%)</label><input type="number" id="calc-rate" class="form-control" placeholder="e.g., 10" step="0.01" required /></div><div class="form-group"><label for="collection-frequency-calc">Collection Frequency</label><select id="collection-frequency-calc" class="form-control" required><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly" selected>Monthly</option></select></div><div class="form-group"><label for="calc-tenure">Number of Installments</label><input type="number" id="calc-tenure" class="form-control" placeholder="e.g., 12" required /></div></div><button type="submit" class="btn btn-primary">Calculate</button></form><div id="calculator-results" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;"><h4>Calculation Result</h4><div class="calc-result-item"><span>Per Installment Amount</span><span id="result-emi"></span></div><div class="calc-result-item"><span>Total Interest</span><span id="result-interest"></span></div><div class="calc-result-item"><span>Total Payment</span><span id="result-total"></span></div></div></div>`;
+    getEl("settings-section").innerHTML = `<div class="settings-grid">
+        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-shield-alt"></i><h3>Security</h3></div><div class="setting-card-body"><p class="setting-description">Manage your account security settings.</p><form id="change-password-form"><div class="form-group"><label for="current-password">Current Password</label><input type="password" id="current-password" class="form-control" required/></div><div class="form-row"><div class="form-group"><label for="new-password">New Password</label><input type="password" id="new-password" class="form-control" required/></div><div class="form-group"><label for="confirm-password">Confirm New Password</label><input type="password" id="confirm-password" class="form-control" required/></div></div><button id="change-password-btn" type="submit" class="btn btn-primary"><span class="loading-spinner hidden"></span><span>Update Password</span></button></form></div></div>
+        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-palette"></i><h3>Appearance</h3></div><div class="setting-card-body"><p class="setting-description">Customize the look and feel of the application.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-moon"></i><span>Dark Mode</span></div><div class="setting-control"><label class="switch"><input type="checkbox" id="dark-mode-toggle" /><span class="slider round"></span></label></div></div></div></div>
+        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-database"></i><h3>Data Management</h3></div><div class="setting-card-body"><p class="setting-description">Backup your data or restore from a file.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-download"></i><span>Export Data</span></div><div class="setting-control"><button class="btn btn-outline" id="export-backup-btn">Download Backup</button></div></div><hr class="form-hr"><div class="setting-item column"><div class="setting-label"><i class="fas fa-upload"></i><span>Import Data</span></div><div class="import-controls"><input type="file" id="import-backup-input" accept=".json" class="hidden"><label for="import-backup-input" class="btn btn-outline"><i class="fas fa-file-import"></i> Choose File</label><span id="file-name-display" class="file-name">No file chosen</span></div><p class="warning-text"><i class="fas fa-exclamation-triangle"></i> This will overwrite all current data.</p><button class="btn btn-danger" id="import-backup-btn">Import & Overwrite</button></div></div></div>
+        <div class="form-card setting-card"><div class="setting-card-header"><i class="fas fa-user-cog"></i><h3>Account</h3></div><div class="setting-card-body"><p class="setting-description">Log out from your current session.</p><div class="setting-item"><div class="setting-label"><i class="fas fa-sign-out-alt"></i><span>Logout</span></div><div class="setting-control"><button class="btn btn-outline" id="logout-settings-btn">Logout Now</button></div></div></div></div>
+    </div>`;
+
+    populateCustomerLists();
+    populateTodaysCollection();
+    renderUpcomingAndOverdueEmis(window.allCustomers.active);
+    renderActivityLog();
+  };
+
+  const renderIndividualLoanList = (element, data) => {
     if (!element) return;
     element.innerHTML = "";
     if (data.length === 0) {
@@ -456,54 +456,91 @@ document.addEventListener("DOMContentLoaded", () => {
         0
       );
       const interestEarned = Math.max(0, totalPaid - c.loanDetails.principal);
-      const paidInstallments = c.paymentSchedule.filter(
-        (p) => p.status === "Paid"
-      ).length;
 
-      let detailsHtml;
-      let nameHtml = `<div class="customer-name">${c.name}</div>`;
+      const financeStatusText = `Finance ${financeCount} - ${c.status}`;
+      const nameHtml = `<div class="customer-name">${c.name} <span class="finance-status-badge">${financeStatusText}</span></div>`;
+      const detailsHtml = `<span>Principal: ${formatCurrency(
+        c.loanDetails.principal
+      )}</span><span class="list-profit-display success">Interest: ${formatCurrency(
+        interestEarned
+      )}</span>`;
 
-      if (type === "settled") {
-        const financeStatusText = `Finance ${financeCount} - ${c.status}`;
-        nameHtml = `<div class="customer-name">${c.name} <span class="finance-status-badge">${financeStatusText}</span></div>`;
-        detailsHtml = `<span>Principal: ${formatCurrency(
-          c.loanDetails.principal
-        )}</span><span class="list-profit-display success">Interest: ${formatCurrency(
-          interestEarned
-        )}</span>`;
-      } else {
-        // type is 'active'
-        nameHtml = `<div class="customer-name">${c.name} <span class="finance-count-badge">${financeCount}</span></div>`;
-        detailsHtml = `<span>Due: ${formatCurrency(
-          c.paymentSchedule[0]?.amountDue
-        )}</span><span>Paid: ${paidInstallments}/${
-          c.paymentSchedule.length
-        }</span>`;
-      }
-
-      const deleteButton =
-        type === "settled"
-          ? `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`
-          : "";
+      const deleteButton = `<button class="btn btn-danger btn-sm delete-customer-btn" data-id="${c.id}" title="Delete Customer"><i class="fas fa-trash-alt"></i></button>`;
 
       li.innerHTML = `<div class="customer-info" data-id="${c.id}">${nameHtml}<div class="customer-details">${detailsHtml}</div></div><div class="customer-actions">${deleteButton}<span class="view-details-prompt" data-id="${c.id}">View Details</span></div>`;
       element.appendChild(li);
     });
   };
 
+  const renderActiveCustomerList = (customerArray) => {
+    const listEl = getEl("customers-list");
+    if (!listEl) return;
+
+    const customerGroups = new Map();
+    customerArray.forEach((customer) => {
+      if (!customerGroups.has(customer.name)) {
+        customerGroups.set(customer.name, []);
+      }
+      customerGroups.get(customer.name).push(customer);
+    });
+
+    if (customerGroups.size === 0) {
+      listEl.innerHTML = `<li class="activity-item" style="cursor:default; justify-content:center;"><p>No customers found.</p></li>`;
+      return;
+    }
+
+    let listHtml = "";
+    for (const [name, loans] of customerGroups.entries()) {
+      const latestLoan = [...loans].sort(
+        (a, b) => (b.financeCount || 1) - (a.financeCount || 1)
+      )[0];
+      const totalActiveLoans = loans.length;
+      const totalOutstanding = loans.reduce((sum, loan) => {
+        const totalInterest = calculateTotalInterest(loan.loanDetails);
+        const totalRepayable = loan.loanDetails.principal + totalInterest;
+        const totalPaid = loan.paymentSchedule.reduce(
+          (s, p) => s + p.amountPaid,
+          0
+        );
+        return sum + (totalRepayable - totalPaid);
+      }, 0);
+
+      const nameHtml = `<div class="customer-name">${name}</div>`;
+      const detailsHtml = `<span>Total Outstanding: ${formatCurrency(
+        totalOutstanding
+      )}</span>`;
+      const loanCountBadge =
+        totalActiveLoans > 1
+          ? `<span class="finance-count-badge">${totalActiveLoans}</span>`
+          : "";
+
+      listHtml += `
+            <li class="customer-item">
+                <div class="customer-info" data-id="${latestLoan.id}">
+                    ${nameHtml}
+                    <div class="customer-details">${detailsHtml}</div>
+                </div>
+                <div class="customer-actions">
+                    ${loanCountBadge}
+                    <span class="view-details-prompt" data-id="${latestLoan.id}">View Details</span>
+                </div>
+            </li>`;
+    }
+    listEl.innerHTML = listHtml;
+  };
+
   const populateCustomerLists = () => {
     getEl(
       "active-accounts-section"
-    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Active Accounts (${window.allCustomers.active.length})</h3><button class="btn btn-outline" id="export-active-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><div class="form-group"><input type="text" id="search-customers" class="form-control" placeholder="Search active customers..." /></div><ul id="customers-list" class="customer-list"></ul></div>`;
-    renderList(getEl("customers-list"), window.allCustomers.active, "active");
+    ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Active Accounts</h3><button class="btn btn-outline" id="export-active-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div><div class="form-group"><input type="text" id="search-customers" class="form-control" placeholder="Search active customers..." /></div><ul id="customers-list" class="customer-list"></ul></div>`;
+    renderActiveCustomerList(window.allCustomers.active);
 
     getEl(
       "settled-accounts-section"
     ).innerHTML = `<div class="form-card"><div class="card-header"><h3>Settled Accounts (${window.allCustomers.settled.length})</h3><div style="display: flex; gap: 0.75rem;"><button class="btn btn-danger" id="delete-all-settled-btn"><i class="fas fa-trash-alt"></i> Delete All</button><button class="btn btn-outline" id="export-settled-btn"><i class="fas fa-file-excel"></i> Export to Excel</button></div></div><ul id="settled-customers-list" class="customer-list"></ul></div>`;
-    renderList(
+    renderIndividualLoanList(
       getEl("settled-customers-list"),
-      window.allCustomers.settled,
-      "settled"
+      window.allCustomers.settled
     );
   };
 
@@ -622,29 +659,13 @@ document.addEventListener("DOMContentLoaded", () => {
       .filter((c) => c.name === customer.name)
       .sort((a, b) => (a.financeCount || 1) - (b.financeCount || 1));
 
-    const uniqueLoans = [
+    const loansToDisplay = [
       ...new Map(allLoansForCustomer.map((item) => [item.id, item])).values(),
     ];
 
-    const optionsMap = new Map();
-    uniqueLoans.forEach((loan) => {
-      const label = `Finance ${loan.financeCount || 1}`;
-      if (
-        !optionsMap.has(label) ||
-        loan.status === "active" ||
-        loan.id === customerId
-      ) {
-        optionsMap.set(label, loan);
-      }
-    });
-    const loansToDisplay = Array.from(optionsMap.values()).sort(
-      (a, b) => (a.financeCount || 1) - (b.financeCount || 1)
-    );
-
     const switcherContainer = getEl("loan-switcher-container");
-    const customSelect = switcherContainer.querySelector(".custom-select");
-    const optionsContainer = customSelect.querySelector(".custom-options");
-    const triggerText = customSelect.querySelector(
+    const optionsContainer = switcherContainer.querySelector(".custom-options");
+    const triggerText = switcherContainer.querySelector(
       ".custom-select-trigger span"
     );
 
@@ -837,6 +858,44 @@ document.addEventListener("DOMContentLoaded", () => {
       getEl("admin-dashboard").classList.add("hidden");
     }
   });
+
+  function updateInstallmentPreview() {
+    const previewDiv = getEl("installment-preview");
+    const p = parseFloat(getEl("principal-amount").value);
+    const r = parseFloat(getEl("interest-rate-modal").value);
+    const freq = getEl("collection-frequency").value;
+    const firstDate = getEl("first-collection-date").value;
+    const endDate = getEl("loan-end-date").value;
+
+    if (!p || !r || !firstDate || !endDate) {
+      previewDiv.classList.add("hidden");
+      return;
+    }
+
+    try {
+      const n = calculateInstallments(firstDate, endDate, freq);
+      if (n <= 0) {
+        throw new Error("Invalid date range for the selected frequency.");
+      }
+      const totalInterest = calculateTotalInterest({
+        principal: p,
+        interestRate: r,
+        installments: n,
+        frequency: freq,
+      });
+      const totalRepayable = p + totalInterest;
+      const installmentAmount = totalRepayable / n;
+
+      previewDiv.innerHTML = `<p>Calculated: <strong>${n} installments</strong> of <strong>${formatCurrency(
+        installmentAmount
+      )}</strong> each.</p>`;
+      previewDiv.classList.remove("error", "hidden");
+    } catch (error) {
+      previewDiv.innerHTML = `<p>${error.message}</p>`;
+      previewDiv.classList.add("error");
+      previewDiv.classList.remove("hidden");
+    }
+  }
 
   function updateNewLoanInstallmentPreview() {
     const previewDiv = getEl("new-loan-installment-preview");
@@ -1705,7 +1764,8 @@ document.addEventListener("DOMContentLoaded", () => {
     loanDetailFields.forEach((id) => {
       const element = getEl(id);
       if (element) {
-        // This is for the main "Add Customer" modal
+        element.addEventListener("input", updateInstallmentPreview);
+        element.addEventListener("change", updateInstallmentPreview);
       }
     });
 
@@ -1750,10 +1810,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const filtered = window.allCustomers.active.filter((c) =>
           c.name.toLowerCase().includes(term)
         );
-        const listEl = getEl("customers-list");
-        if (listEl) {
-          renderList(listEl, filtered, "active");
-        }
+        renderActiveCustomerList(filtered);
       }
     });
   }
