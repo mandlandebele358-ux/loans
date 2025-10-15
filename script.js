@@ -1,11 +1,11 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyBG87TpDWEPzjuJ4rQVQT92ITXdo4FTqbQ",
-  authDomain: "loanmanager-caa23.firebaseapp.com",
-  projectId: "loanmanager-caa23",
-  storageBucket: "loanmanager-caa23.appspot.com",
-  messagingSenderId: "256544208599",
-  appId: "1:256544208599:web:18de9e46a8f77f620aa292",
-  measurementId: "G-QW0EKBYEBS",
+  apiKey: "AIzaSyD0wHBp_Gb-U7eJFjoa3pTBYdgipxMYyzg",
+  authDomain: "globalfinanceconsultant-bf13a.firebaseapp.com",
+  projectId: "globalfinanceconsultant-bf13a",
+  storageBucket: "globalfinanceconsultant-bf13a.firebasestorage.app",
+  messagingSenderId: "611257450437",
+  appId: "1:611257450437:web:fda4e59be985ef146e55ac",
+  measurementId: "G-KWM1STNNZ0",
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
